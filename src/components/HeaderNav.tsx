@@ -13,7 +13,10 @@ import {
   CreditCard,
   FileSpreadsheet,
   AlertCircle,
-  X
+  X,
+  Shield,
+  User,
+  LogIn
 } from 'lucide-react';
 
 export const HeaderNav: React.FC = () => {
@@ -33,7 +36,11 @@ export const HeaderNav: React.FC = () => {
     setSelectedPatientFor360,
     setActiveTab,
     startVisitFromAppointment,
-    appointments
+    appointments,
+    cloudSyncStatus,
+    currentUser,
+    firebaseUser,
+    setIsAuthModalOpen
   } = useErp();
 
   const [isSyncing, setIsSyncing] = useState(false);
@@ -46,40 +53,40 @@ export const HeaderNav: React.FC = () => {
   };
 
   // Search Results
-  const query = searchQuery.trim().toLowerCase();
+  const query = (searchQuery || '').trim().toLowerCase();
   const matchedPatients = query
-    ? patients.filter(
+    ? (patients || []).filter(
         p =>
-          p.name.toLowerCase().includes(query) ||
-          p.mrd.toLowerCase().includes(query) ||
-          p.mobile.includes(query) ||
+          (p.name || '').toLowerCase().includes(query) ||
+          (p.mrd || '').toLowerCase().includes(query) ||
+          (p.mobile || '').includes(query) ||
           (p.village && p.village.toLowerCase().includes(query))
       )
     : [];
 
   const matchedOrders = query
-    ? spectacleOrders.filter(
+    ? (spectacleOrders || []).filter(
         o =>
-          o.orderId.toLowerCase().includes(query) ||
-          o.customerName.toLowerCase().includes(query) ||
-          o.mobile.includes(query) ||
-          o.mrd.toLowerCase().includes(query)
+          (o.orderId || '').toLowerCase().includes(query) ||
+          (o.customerName || '').toLowerCase().includes(query) ||
+          (o.mobile || '').includes(query) ||
+          (o.mrd || '').toLowerCase().includes(query)
       )
     : [];
 
   const matchedInvoices = query
-    ? retailSales.filter(
+    ? (retailSales || []).filter(
         s =>
-          s.invoiceNumber.toLowerCase().includes(query) ||
-          s.customerName.toLowerCase().includes(query) ||
-          s.mobile.includes(query)
+          (s.invoiceNumber || (s as any).invoiceNo || '').toLowerCase().includes(query) ||
+          (s.customerName || '').toLowerCase().includes(query) ||
+          (s.mobile || '').includes(query)
       )
     : [];
 
   const matchedInventory = query
     ? [
-        ...frames.filter(f => f.sku.toLowerCase().includes(query) || f.brand.toLowerCase().includes(query)),
-        ...lenses.filter(l => l.lensCode.toLowerCase().includes(query) || l.brand.toLowerCase().includes(query))
+        ...(frames || []).filter(f => (f.sku || '').toLowerCase().includes(query) || (f.brand || '').toLowerCase().includes(query)),
+        ...(lenses || []).filter(l => (l.lensCode || '').toLowerCase().includes(query) || (l.brand || '').toLowerCase().includes(query))
       ]
     : [];
 
@@ -250,6 +257,45 @@ export const HeaderNav: React.FC = () => {
           {/* Right Action Bar */}
           <div className="flex items-center gap-2 sm:gap-3">
             
+            {/* AI Assistant Quick Pill Button */}
+            <button
+              id="header-ai-assistant-btn"
+              onClick={() => setQuickModal('ai-assistant')}
+              title="Open PAHARPUR ERP AI Assistant"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-teal-700 to-slate-900 hover:from-teal-600 hover:to-slate-800 text-white rounded-lg text-xs font-bold shadow-xs transition-all hover:scale-105"
+            >
+              <span className="w-2 h-2 rounded-full bg-teal-300 animate-ping"></span>
+              <span className="hidden sm:inline">AI Assistant</span>
+              <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded-full font-mono">বাংলা</span>
+            </button>
+
+            {/* Cloud Firestore Primary Database Pill */}
+            <button
+              id="header-cloud-database-btn"
+              onClick={() => setActiveTab('settings')}
+              title={`Cloud Firestore: ${cloudSyncStatus.toUpperCase()} • Click to open Cloud Hub`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-2xs border ${
+                cloudSyncStatus === 'synced' || cloudSyncStatus === 'online'
+                  ? 'bg-teal-50 hover:bg-teal-100 text-teal-800 border-teal-200'
+                  : cloudSyncStatus === 'syncing'
+                  ? 'bg-amber-50 text-amber-800 border-amber-200'
+                  : 'bg-slate-100 text-slate-700 border-slate-200'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  cloudSyncStatus === 'synced' || cloudSyncStatus === 'online'
+                    ? 'bg-teal-600'
+                    : cloudSyncStatus === 'syncing'
+                    ? 'bg-amber-500 animate-ping'
+                    : 'bg-slate-400'
+                }`}
+              />
+              <span className="hidden sm:inline">
+                {cloudSyncStatus === 'syncing' ? 'Cloud Syncing...' : 'Cloud Synced'}
+              </span>
+            </button>
+
             {/* Google Sheets Sync Pill */}
             <button
               id="header-sheets-sync-btn"
@@ -273,11 +319,35 @@ export const HeaderNav: React.FC = () => {
                 <span className="hidden sm:inline">1-Click Action</span>
               </button>
 
-              <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-1">
+              <div className="absolute right-0 top-full mt-1.5 w-60 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-1">
+                <button
+                  id="action-ai-assistant"
+                  onClick={() => setQuickModal('ai-assistant')}
+                  className="w-full text-left px-3.5 py-2 text-xs font-bold text-teal-900 bg-teal-50/70 hover:bg-teal-100 flex items-center gap-2"
+                >
+                  <Eye className="w-4 h-4 text-teal-600" />
+                  🤖 Open ERP AI Assistant (বাংলা/EN)
+                </button>
+                <button
+                  id="action-ai-ocr"
+                  onClick={() => setQuickModal('ai-ocr')}
+                  className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-800 flex items-center gap-2"
+                >
+                  <Eye className="w-4 h-4 text-teal-600" />
+                  📷 AI Scan Prescription (OCR)
+                </button>
+                <button
+                  id="action-ai-voice"
+                  onClick={() => setQuickModal('ai-voice')}
+                  className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-800 flex items-center gap-2"
+                >
+                  <Eye className="w-4 h-4 text-teal-600" />
+                  🎙️ AI Voice Data Entry
+                </button>
                 <button
                   id="action-new-patient"
                   onClick={() => setQuickModal('new-patient')}
-                  className="w-full text-left px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-teal-50 hover:text-teal-800 flex items-center gap-2"
+                  className="w-full text-left px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-teal-50 hover:text-teal-800 flex items-center gap-2 border-t border-slate-100"
                 >
                   <UserCheck className="w-4 h-4 text-teal-600" />
                   + New Patient Registration
@@ -328,14 +398,45 @@ export const HeaderNav: React.FC = () => {
                 onChange={e => setRole(e.target.value as UserRole)}
                 className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer py-0.5 pr-2"
               >
-                <option value="Admin">Admin (Full Access)</option>
-                <option value="Doctor">Doctor (Clinical + Rx)</option>
-                <option value="Optometrist">Optometrist (Vision + Rx)</option>
-                <option value="Receptionist">Receptionist (Reg + Apt)</option>
-                <option value="Sales">Sales (Optical + Orders)</option>
-                <option value="Inventory">Inventory (Lens + Frame)</option>
+                <option value="Admin">ADMIN (Full Access)</option>
+                <option value="Receptionist">RECEPTION (Front Desk)</option>
+                <option value="Optometrist">OPTOMETRIST (Vision & Clinical)</option>
+                <option value="Doctor">DOCTOR (Senior Clinical)</option>
+                <option value="Sales">SALES (Optical POS & Orders)</option>
+                <option value="Accountant">ACCOUNTANT (Ledgers & Dues)</option>
+                <option value="Marketing">MARKETING (CRM & Campaigns)</option>
+                <option value="Read Only">READ ONLY (Auditor)</option>
               </select>
             </div>
+
+            {/* Staff User Profile & Firebase Auth Modal Trigger */}
+            <button
+              id="header-user-auth-btn"
+              onClick={() => setIsAuthModalOpen(true)}
+              title={
+                firebaseUser
+                  ? `Signed In: ${currentUser?.displayName || firebaseUser.email} (${currentUser?.role || role})`
+                  : 'Click to Sign In with Staff Account'
+              }
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-slate-200 hover:border-teal-400 bg-slate-50 hover:bg-white text-slate-800 transition-all shadow-2xs group"
+            >
+              <div className="relative">
+                <div className="w-7 h-7 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+                  {(currentUser?.displayName || firebaseUser?.email || role)[0].toUpperCase()}
+                </div>
+                {firebaseUser && (
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></span>
+                )}
+              </div>
+              <div className="text-left hidden xl:block">
+                <div className="text-xs font-bold text-slate-900 leading-none truncate max-w-[110px]">
+                  {currentUser?.displayName || (firebaseUser ? 'Staff User' : `${role} Staff`)}
+                </div>
+                <div className="text-[10px] text-teal-700 font-semibold leading-tight">
+                  {currentUser?.role || role}
+                </div>
+              </div>
+            </button>
 
           </div>
         </div>

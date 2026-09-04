@@ -30,18 +30,27 @@ export const DueManagementView: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'UPI' | 'Card' | 'Bank Transfer'>('Cash');
   const [paymentNotes, setPaymentNotes] = useState<string>('');
 
-  const filtered = dueAccounts.filter(acc => {
+  const list = Array.isArray(dueAccounts) ? dueAccounts : [];
+
+  const filtered = list.filter(acc => {
+    const q = (search || '').trim().toLowerCase();
+    const cName = (acc.customerName || '').toLowerCase();
+    const mrd = (acc.mrd || '').toLowerCase();
+    const mob = acc.mobile || '';
+    const refId = (acc.referenceId || '').toLowerCase();
+
     const matchesSearch =
-      acc.customerName.toLowerCase().includes(search.toLowerCase()) ||
-      (acc.mrd && acc.mrd.toLowerCase().includes(search.toLowerCase())) ||
-      (acc.mobile && acc.mobile.includes(search)) ||
-      acc.referenceId.toLowerCase().includes(search.toLowerCase());
+      !q ||
+      cName.includes(q) ||
+      mrd.includes(q) ||
+      mob.includes(search) ||
+      refId.includes(q);
 
     const matchesAging = filterAging === 'All' || acc.agingBucket === filterAging;
     return matchesSearch && matchesAging;
   });
 
-  const totalOutstanding = dueAccounts.reduce((acc, d) => acc + d.dueAmount, 0);
+  const totalOutstanding = list.reduce((acc, d) => acc + d.dueAmount, 0);
 
   const handleOpenCollectModal = (acc: any) => {
     setCollectingAccount(acc);

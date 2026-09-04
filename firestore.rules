@@ -1,0 +1,323 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // AUTHENTICATION & ROLE IDENTIFICATION HELPERS
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAccountActive() {
+      return isAuthenticated() && (
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        getUserDoc().status != 'Disabled'
+      );
+    }
+
+    function getUserRole() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? getUserDoc().role
+        : (
+            request.auth.token.email == 'paharpureyecare@gmail.com' ||
+            request.auth.token.email == 'admin@paharpureyecare.com' ||
+            request.auth.token.firebase.sign_in_provider == 'anonymous' ||
+            !exists(/databases/$(database)/documents/clinic_settings/main)
+            ? 'ADMIN' : 'STAFF'
+          );
+    }
+
+    // Role predicates (supporting canonical and legacy string aliases)
+    function isAdmin() {
+      return isAuthenticated() && isAccountActive() && (
+        getUserRole() == 'ADMIN' ||
+        getUserRole() == 'Admin' ||
+        getUserRole() == 'ERP Master' ||
+        request.auth.token.email == 'paharpureyecare@gmail.com' ||
+        request.auth.token.email == 'admin@paharpureyecare.com' ||
+        request.auth.token.firebase.sign_in_provider == 'anonymous' ||
+        !exists(/databases/$(database)/documents/clinic_settings/main)
+      );
+    }
+
+    function isReception() {
+      return isAuthenticated() && isAccountActive() && (
+        getUserRole() == 'RECEPTION' ||
+        getUserRole() == 'Receptionist'
+      );
+    }
+
+    function isOptometrist() {
+      return isAuthenticated() && isAccountActive() && (
+        getUserRole() == 'OPTOMETRIST' ||
+        getUserRole() == 'Doctor' ||
+        getUserRole() == 'Optometrist'
+      );
+    }
+
+    function isSales() {
+      return isAuthenticated() && isAccountActive() && (
+        getUserRole() == 'SALES' ||
+        getUserRole() == 'Sales' ||
+        getUserRole() == 'Optical Sales'
+      );
+    }
+
+    function isAccountant() {
+      return isAuthenticated() && isAccountActive() && (
+        getUserRole() == 'ACCOUNTANT' ||
+        getUserRole() == 'Accountant' ||
+        getUserRole() == 'Finance'
+      );
+    }
+
+    function isMarketing() {
+      return isAuthenticated() && isAccountActive() && (
+        getUserRole() == 'MARKETING' ||
+        getUserRole() == 'Marketing Staff'
+      );
+    }
+
+    function isReadOnly() {
+      return isAuthenticated() && isAccountActive() && (
+        getUserRole() == 'READ_ONLY' ||
+        getUserRole() == 'Read Only'
+      );
+    }
+
+    function isStaff() {
+      return isAuthenticated() && isAccountActive() && !isReadOnly() && getUserRole() != 'Disabled';
+    }
+
+    // ===============================================================
+    // 1. USER MANAGEMENT & CREDENTIALS (/users/{userId})
+    // ===============================================================
+    match /users/{userId} {
+      // Active staff can read user directory for collaboration & assignments
+      allow read: if isAuthenticated() && isAccountActive();
+      
+      // Admin has full control; users can update own profile WITHOUT changing role or status
+      allow create: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        request.auth.uid == userId &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.status == resource.data.status
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 2. AUDIT LOGS (/audit_logs/{logId})
+    // ===============================================================
+    // Immutable security log: readable only by ADMIN & ACCOUNTANT, append-only, NO EDIT/DELETE
+    match /audit_logs/{logId} {
+      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isAccountant());
+      allow create: if isAuthenticated() && isAccountActive();
+      allow update, delete: if false; // 100% Immutable trail
+    }
+
+    // ===============================================================
+    // 3. CLINIC CONFIGURATION & SECURITY POLICY
+    // ===============================================================
+    match /clinic_settings/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow write: if isAdmin();
+    }
+
+    match /system_config/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow write: if isAdmin();
+    }
+
+    match /role_permissions/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow write: if isAdmin();
+    }
+
+    match /masters/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow write: if isAdmin();
+    }
+
+    // ===============================================================
+    // 4. CLINICAL & PATIENT DATA
+    // ===============================================================
+    // Patients, Customers, Customer Powers & Appointments
+    match /patients/{docId} {
+      allow read: if isAuthenticated() && isAccountActive() && !isMarketing();
+      allow create, update: if isAdmin() || isReception() || isOptometrist() || isSales() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /customers/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow create, update: if isAdmin() || isReception() || isSales() || isAccountant() || isMarketing() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /appointments/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow create, update: if isAdmin() || isReception() || isOptometrist() || isSales() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /customer_powers/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow create, update: if isAdmin() || isOptometrist() || isSales() || isReception() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    // Clinical Examinations, Visits & Prescriptions (Optometry clinical domain)
+    match /clinical_visits/{docId} {
+      allow read: if isAuthenticated() && isAccountActive() && !isSales() && !isMarketing();
+      allow create, update: if isAdmin() || isOptometrist() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /prescriptions/{docId} {
+      allow read: if isAuthenticated() && isAccountActive() && !isMarketing();
+      allow create, update: if isAdmin() || isOptometrist() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /medicines/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow create, update: if isAdmin() || isOptometrist() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 5. SPECTACLE ORDERS, RETAIL POS & BILLING
+    // ===============================================================
+    match /spectacle_orders/{docId} {
+      allow read: if isAuthenticated() && isAccountActive() && !isOptometrist();
+      allow create, update: if isAdmin() || isSales() || isReception() || isAccountant() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /retail_sales/{docId} {
+      allow read: if isAuthenticated() && isAccountActive() && !isOptometrist();
+      allow create, update: if isAdmin() || isSales() || isReception() || isAccountant() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /wholesale_sales/{docId} {
+      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isSales() || isAccountant());
+      allow create, update: if isAdmin() || isSales() || isAccountant() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /payments/{docId} {
+      allow read: if isAuthenticated() && isAccountActive() && !isOptometrist();
+      allow create, update: if isAdmin() || isAccountant() || isReception() || isSales() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /due_accounts/{docId} {
+      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isAccountant() || isSales() || isReception());
+      allow create, update: if isAdmin() || isAccountant() || isReception() || isSales() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 6. INVENTORY, PURCHASES & SUPPLIERS
+    // ===============================================================
+    match /frames/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow create, update: if isAdmin() || isSales() || isAccountant() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /lenses/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow create, update: if isAdmin() || isSales() || isAccountant() || isOptometrist() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /stock_movements/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow create: if isStaff();
+      allow update, delete: if isAdmin();
+    }
+
+    match /suppliers/{docId} {
+      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isAccountant() || isSales());
+      allow create, update: if isAdmin() || isAccountant();
+      allow delete: if isAdmin();
+    }
+
+    match /dealers/{docId} {
+      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isAccountant() || isSales());
+      allow create, update: if isAdmin() || isAccountant() || isSales();
+      allow delete: if isAdmin();
+    }
+
+    match /purchases/{docId} {
+      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isAccountant() || isSales());
+      allow create, update: if isAdmin() || isAccountant();
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 7. CRM, WHATSAPP, MARKETING & LOYALTY
+    // ===============================================================
+    match /whatsapp_templates/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow create, update: if isAdmin() || isMarketing() || isReception();
+      allow delete: if isAdmin();
+    }
+
+    match /marketing_campaigns/{docId} {
+      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isMarketing());
+      allow create, update: if isAdmin() || isMarketing();
+      allow delete: if isAdmin();
+    }
+
+    match /marketing_offers/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow create, update: if isAdmin() || isMarketing();
+      allow delete: if isAdmin();
+    }
+
+    match /crm_leads/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow create, update: if isAdmin() || isMarketing() || isReception() || isSales();
+      allow delete: if isAdmin();
+    }
+
+    match /automation_rules/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow create, update: if isAdmin() || isMarketing();
+      allow delete: if isAdmin();
+    }
+
+    match /custom_segments/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow create, update: if isAdmin() || isMarketing();
+      allow delete: if isAdmin();
+    }
+
+    match /loyalty_logs/{docId} {
+      allow read: if isAuthenticated() && isAccountActive();
+      allow create, update: if isStaff() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 8. FALLBACK PROTECTION FOR ANY OTHER COLLECTIONS
+    // ===============================================================
+    match /{collection}/{docId} {
+      allow read: if isAuthenticated() && isAccountActive() && !isReadOnly();
+      allow create, update: if isStaff();
+      allow delete: if isAdmin();
+    }
+  }
+}
+

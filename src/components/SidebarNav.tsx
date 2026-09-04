@@ -20,11 +20,13 @@ import {
   FileSpreadsheet,
   History,
   Settings,
-  AlertTriangle
+  AlertTriangle,
+  Database,
+  Award
 } from 'lucide-react';
 
 export const SidebarNav: React.FC = () => {
-  const { activeTab, setActiveTab, appointments, spectacleOrders, frames, lenses, retailSales } = useErp();
+  const { activeTab, setActiveTab, appointments, spectacleOrders, frames, lenses, retailSales, setQuickModal } = useErp();
 
   const waitingAppointments = appointments.filter(a => a.status === 'Waiting' || a.status === 'Booked').length;
   const activeOrders = spectacleOrders.filter(o => o.status === 'In Production' || o.status === 'Ready' || o.status === 'Lens Ordered').length;
@@ -57,6 +59,7 @@ export const SidebarNav: React.FC = () => {
       title: '🩺 CLINICAL HUB',
       items: [
         { id: 'patients', label: 'Patient 360° Registry', icon: Users },
+        { id: 'customers', label: 'Customer 360 & CRM', icon: Users },
         {
           id: 'appointments',
           label: 'Appointments',
@@ -80,7 +83,7 @@ export const SidebarNav: React.FC = () => {
           badgeColor: 'bg-amber-100 text-amber-800'
         },
         { id: 'retail-sales', label: 'Retail Point of Sale', icon: ShoppingBag },
-        { id: 'wholesale', label: 'Wholesale Orders', icon: Building2 }
+        { id: 'wholesale', label: 'Lens Stockist & Wholesale', icon: Building2 }
       ]
     },
     {
@@ -99,6 +102,18 @@ export const SidebarNav: React.FC = () => {
       ]
     },
     {
+      title: '🗄️ MASTER MANAGEMENT',
+      items: [
+        {
+          id: 'masters',
+          label: 'Master Management (11)',
+          icon: Database,
+          badge: 'Live',
+          badgeColor: 'bg-teal-500/30 text-teal-300'
+        }
+      ]
+    },
+    {
       title: '💰 FINANCE & CRM',
       items: [
         {
@@ -109,6 +124,13 @@ export const SidebarNav: React.FC = () => {
           badgeColor: 'bg-purple-100 text-purple-700'
         },
         { id: 'crm', label: 'CRM & WhatsApp Engine', icon: MessageSquare },
+        {
+          id: 'loyalty',
+          label: 'Loyalty Points & Rewards',
+          icon: Award,
+          badge: 'VIP',
+          badgeColor: 'bg-amber-100 text-amber-800'
+        },
         { id: 'reports', label: 'CEO Analytics & Profit', icon: BarChart3 },
         { id: 'sheets-sync', label: 'Google Sheets Live Sync', icon: FileSpreadsheet }
       ]
@@ -124,6 +146,25 @@ export const SidebarNav: React.FC = () => {
 
   return (
     <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0 min-h-[calc(100vh-4rem)] border-r border-slate-800">
+      {/* Prominent AI Assistant Card */}
+      <div className="p-3 border-b border-slate-800">
+        <button
+          onClick={() => setQuickModal('ai-assistant')}
+          className="w-full p-2.5 rounded-xl bg-gradient-to-r from-teal-700 via-teal-600 to-slate-800 hover:from-teal-600 hover:to-slate-700 text-white font-bold text-xs flex items-center justify-between shadow-sm transition-all hover:scale-[1.02] border border-teal-500/30"
+        >
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-teal-200">
+              🤖
+            </span>
+            <div className="text-left">
+              <div className="text-xs font-bold leading-none">ERP AI Assistant</div>
+              <span className="text-[10px] text-teal-200 font-medium">বাংলা / English Assistant</span>
+            </div>
+          </div>
+          <span className="text-[10px] bg-teal-400/30 px-1.5 py-0.5 rounded-full font-mono">Ask</span>
+        </button>
+      </div>
+
       <div className="p-4 flex-1 overflow-y-auto space-y-6 custom-scrollbar">
         {navGroups.map((group, gIdx) => (
           <div key={gIdx} className="space-y-1">
@@ -176,7 +217,7 @@ export const SidebarNav: React.FC = () => {
           </span>
         </div>
         <p className="text-[10px] text-slate-400 mt-1">
-          Google Sheets Auto-Persistence Active
+          Firestore Cloud + Sheets Active
         </p>
       </div>
     </aside>

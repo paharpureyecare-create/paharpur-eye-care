@@ -104,6 +104,20 @@ export const DashboardView: React.FC = () => {
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
             <button
+              onClick={() => setQuickModal('ai-assistant')}
+              className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm flex items-center gap-1.5 transition-all hover:scale-105"
+            >
+              <Sparkles className="w-4 h-4 text-teal-950" />
+              🤖 AI Assistant (বাংলা)
+            </button>
+            <button
+              onClick={() => setQuickModal('ai-ceo-report')}
+              className="bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3.5 py-2 rounded-xl border border-white/20 shadow-sm flex items-center gap-1.5 transition-all"
+            >
+              <TrendingUp className="w-4 h-4 text-teal-300" />
+              AI Daily CEO Brief
+            </button>
+            <button
               onClick={() => setActiveTab('entry-center')}
               className="bg-white hover:bg-teal-50 text-teal-900 font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm flex items-center gap-1.5 transition-all hover:scale-105"
             >

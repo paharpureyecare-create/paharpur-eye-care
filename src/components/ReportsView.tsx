@@ -29,14 +29,16 @@ export const ReportsView: React.FC = () => {
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'all'>('all');
 
   // Spectacle Revenue
-  const spectacleTotal = spectacleOrders.reduce((acc, o) => acc + o.total, 0);
-  const spectacleAdvance = spectacleOrders.reduce((acc, o) => acc + o.advance, 0);
-  const spectacleDue = spectacleOrders.reduce((acc, o) => acc + o.due, 0);
+  const specList = Array.isArray(spectacleOrders) ? spectacleOrders : [];
+  const spectacleTotal = specList.reduce((acc, o) => acc + (o.total || 0), 0);
+  const spectacleAdvance = specList.reduce((acc, o) => acc + (o.advance || 0), 0);
+  const spectacleDue = specList.reduce((acc, o) => acc + (o.due || 0), 0);
 
   // Retail Sales Revenue
-  const retailTotal = retailSales.reduce((acc, s) => acc + s.netTotal, 0);
-  const retailPaid = retailSales.reduce((acc, s) => acc + s.paid, 0);
-  const retailDue = retailSales.reduce((acc, s) => acc + s.due, 0);
+  const retList = Array.isArray(retailSales) ? retailSales : [];
+  const retailTotal = retList.reduce((acc, s) => acc + (s.netTotal || s.grandTotal || 0), 0);
+  const retailPaid = retList.reduce((acc, s) => acc + (s.paid || 0), 0);
+  const retailDue = retList.reduce((acc, s) => acc + (s.due || 0), 0);
 
   // Total Business Collections & Dues
   const totalSales = spectacleTotal + retailTotal;
@@ -44,7 +46,8 @@ export const ReportsView: React.FC = () => {
   const totalDue = spectacleDue + retailDue;
 
   // Purchases / COGS
-  const purchaseMovements = stockMovements.filter(m => m.movementType === 'Purchase');
+  const stockList = Array.isArray(stockMovements) ? stockMovements : [];
+  const purchaseMovements = stockList.filter(m => m.movementType === 'Purchase');
   const estimatedPurchases = 45000; // Estimated baseline
   const grossProfit = totalSales > estimatedPurchases ? totalSales - estimatedPurchases : totalSales * 0.65;
   const grossMargin = totalSales > 0 ? Math.round((grossProfit / totalSales) * 100) : 65;
@@ -120,7 +123,7 @@ export const ReportsView: React.FC = () => {
           </div>
           <p className="text-2xl font-black text-rose-600 mt-2">₹{totalDue.toLocaleString('en-IN')}</p>
           <span className="text-[11px] text-rose-800 font-semibold">
-            {dueAccounts.length} Active Pending Accounts
+            {dueAccounts?.length || 0} Active Pending Accounts
           </span>
         </div>
 
@@ -184,7 +187,7 @@ export const ReportsView: React.FC = () => {
             <div>
               <div className="flex justify-between text-xs font-bold text-slate-800 mb-1">
                 <span>Doctor Consultation & Eye Refractions</span>
-                <span>{clinicalVisits.length} Consultations Recorded</span>
+                <span>{(clinicalVisits || []).length} Consultations Recorded</span>
               </div>
               <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                 <div className="bg-emerald-500 h-full rounded-full w-full"></div>
@@ -205,29 +208,29 @@ export const ReportsView: React.FC = () => {
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
               <span className="text-slate-500 font-bold">Total Lens Stock</span>
               <p className="text-lg font-black text-slate-900 mt-1">
-                {lenses.reduce((acc, l) => acc + l.currentStock, 0)} Pairs
+                {(lenses || []).reduce((acc, l) => acc + (l.currentStock || 0), 0)} Pairs
               </p>
-              <span className="text-[10px] text-teal-700 font-semibold">Across {lenses.length} SKUs</span>
+              <span className="text-[10px] text-teal-700 font-semibold">Across {(lenses || []).length} SKUs</span>
             </div>
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
               <span className="text-slate-500 font-bold">Total Frame Stock</span>
               <p className="text-lg font-black text-slate-900 mt-1">
-                {frames.reduce((acc, f) => acc + f.currentStock, 0)} Units
+                {(frames || []).reduce((acc, f) => acc + (f.currentStock || 0), 0)} Units
               </p>
-              <span className="text-[10px] text-amber-700 font-semibold">Across {frames.length} Models</span>
+              <span className="text-[10px] text-amber-700 font-semibold">Across {(frames || []).length} Models</span>
             </div>
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
               <span className="text-slate-500 font-bold">Registered Patients</span>
-              <p className="text-lg font-black text-slate-900 mt-1">{patients.length}</p>
+              <p className="text-lg font-black text-slate-900 mt-1">{(patients || []).length}</p>
               <span className="text-[10px] text-emerald-700 font-semibold">Lifetime Database</span>
             </div>
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
               <span className="text-slate-500 font-bold">Pending Lab Orders</span>
               <p className="text-lg font-black text-amber-600 mt-1">
-                {spectacleOrders.filter(o => o.status === 'In Production' || o.status === 'Lens Ordered').length}
+                {(spectacleOrders || []).filter(o => o.status === 'In Production' || o.status === 'Lens Ordered').length}
               </p>
               <span className="text-[10px] text-slate-500">In Fitting / Surface</span>
             </div>

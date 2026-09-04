@@ -1,6 +1,6 @@
 {
   "name": "Paharpur Eye Care ERP",
-  "description": "Comprehensive Eye Clinic & Optical Shop ERP system with Google Sheets live sync, patient 360, clinical workspace, spectacle orders, lens & frame inventory ledger, and billing.",
+  "description": "Advanced AI-Powered Optical + Eye Clinic ERP with Natural Language Assistant (বাংলা/English), Vision Prescription OCR, Power Evolution Comparison, Patient & Customer 360, Inventory Matrix, and Google Sheets Live Sync.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

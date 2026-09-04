@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useErp } from '../context/ErpContext';
 import { ClinicExaminer } from '../types';
+import { GoogleSheetsConnectionCard } from './GoogleSheetsConnectionCard';
 import {
   Settings,
   Building2,
@@ -71,7 +72,7 @@ export const SettingsView: React.FC = () => {
     billFooterNote: settings.billFooterNote || 'Thank you for visiting Paharpur Eye Care. Goods once sold can be adjusted as per store optical warranty terms.',
     termsAndConditions: settings.termsAndConditions || '1. Advance is non-refundable once lens edging is initiated.\n2. Power verification valid for 30 days.\n3. Frame alignment and ultrasonic cleaning are complimentary.',
     currencySymbol: settings.currencySymbol || '₹',
-    googleSheetId: settings.googleSheetId || '1PEC_Master_ERP_Sheet_2026_LiveSync'
+    googleSheetId: settings.googleSheetId || ''
   });
 
   // Examiners list state
@@ -861,74 +862,10 @@ export const SettingsView: React.FC = () => {
       )}
 
       {/* =========================================================================
-          TAB 4: GOOGLE SHEETS SYNC (গুগল শিট লাইভ সিঙ্ক)
+          TAB 4: GOOGLE SHEETS DYNAMIC INTEGRATION (গুগল শিট কানেকশন ও লাইভ সিঙ্ক)
          ========================================================================= */}
       {activeSubTab === 'sync' && (
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-2xs space-y-6">
-          <div className="border-b border-slate-100 pb-3">
-            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-              Google Sheets Live Synchronization (গুগল শিট অটোমেটিক ব্যাকআপ)
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Sync all 12 operational ERP modules (Patients, Refraction Prescriptions, Spectacle Orders, Lens Stock, Frame Stock, Cash Bills, Ledger) automatically into your Google Spreadsheet.
-            </p>
-          </div>
-
-          <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-2xl flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shrink-0">
-                <FileSpreadsheet className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-emerald-950 text-sm">
-                    Status: {settings.googleSheetConnected ? 'Connected & Live Synchronized' : 'Ready to Connect'}
-                  </span>
-                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full border border-emerald-300">
-                    Live 2-Way Sync
-                  </span>
-                </div>
-                <p className="text-xs text-emerald-800 mt-0.5">
-                  Last Synchronized: {settings.lastGoogleSheetSync ? new Date(settings.lastGoogleSheetSync).toLocaleString() : 'Just now'}
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => syncWithGoogleSheets()}
-              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm transition-all shrink-0"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Sync Now (এখন সিঙ্ক করুন)
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-slate-800 block mb-1.5">
-                Google Spreadsheet ID (গুগল শিট আইডি)
-              </label>
-              <input
-                type="text"
-                value={formData.googleSheetId}
-                onChange={e => setFormData({ ...formData, googleSheetId: e.target.value })}
-                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-mono font-bold bg-slate-50 focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                placeholder="1PEC_Master_ERP_Sheet_2026_LiveSync"
-              />
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 flex justify-end">
-            <button
-              onClick={handleSaveAll}
-              className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-sm"
-            >
-              <Save className="w-4 h-4" />
-              Save Google Sheet Settings
-            </button>
-          </div>
-        </div>
+        <GoogleSheetsConnectionCard />
       )}
 
       {/* =========================================================================

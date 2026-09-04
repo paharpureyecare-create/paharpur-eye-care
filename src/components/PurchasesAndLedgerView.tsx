@@ -31,12 +31,19 @@ export const PurchasesAndLedgerView: React.FC = () => {
     'Damage'
   ];
 
-  const filtered = stockMovements.filter(m => {
+  const filtered = (stockMovements || []).filter(m => {
+    const q = (search || '').trim().toLowerCase();
+    const iName = (m.itemName || '').toLowerCase();
+    const iCode = (m.itemCode || '').toLowerCase();
+    const ref = (m.reference || '').toLowerCase();
+    const usr = (m.user || '').toLowerCase();
+
     const matchesSearch =
-      m.itemName.toLowerCase().includes(search.toLowerCase()) ||
-      m.itemCode.toLowerCase().includes(search.toLowerCase()) ||
-      m.reference.toLowerCase().includes(search.toLowerCase()) ||
-      m.user.toLowerCase().includes(search.toLowerCase());
+      !q ||
+      iName.includes(q) ||
+      iCode.includes(q) ||
+      ref.includes(q) ||
+      usr.includes(q);
 
     const matchesMovement = filterType === 'All' || m.movementType === filterType;
     const matchesItemType = itemTypeFilter === 'All' || m.itemType === itemTypeFilter;

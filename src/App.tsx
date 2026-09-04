@@ -18,13 +18,31 @@ import { CrmAndWhatsAppView } from './components/CrmAndWhatsAppView';
 import { ReportsView } from './components/ReportsView';
 import { GoogleSheetsSyncView } from './components/GoogleSheetsSyncView';
 import { SettingsView } from './components/SettingsView';
+import { AuditLogPage } from './components/AuditLogPage';
+import { ClinicSettingsPage } from './components/ClinicSettingsPage';
+import { CustomersView } from './components/CustomersView';
+import { WholesaleDealersView } from './components/WholesaleDealersView';
+import { MasterManagementView } from './components/MasterManagementView';
+import { LoyaltyRewardsView } from './components/LoyaltyRewardsView';
+import { Customer360Modal } from './components/Customer360Modal';
 import { Patient360Modal } from './components/Patient360Modal';
 import { PrintModal } from './components/PrintModal';
 import { QuickModals } from './components/QuickModals';
+import { AiAssistantDrawer } from './components/AiAssistantDrawer';
+import { AiPrescriptionOcrModal } from './components/AiPrescriptionOcrModal';
+import { AiVoiceEntryModal } from './components/AiVoiceEntryModal';
+import { AiPowerCompareModal } from './components/AiPowerCompareModal';
+import { AiCeoReportModal } from './components/AiCeoReportModal';
+import { AuthModal } from './components/AuthModal';
+import { PermissionDeniedCard } from './components/PermissionDeniedCard';
+import { getModuleForTab } from './services/permissionService';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
-  const { activeTab, toast } = useErp();
+  const { activeTab, toast, selectedCustomerFor360, setSelectedCustomerFor360, quickModal, setQuickModal, hasPermission } = useErp();
+
+  const currentModule = getModuleForTab(activeTab);
+  const isViewPermitted = hasPermission(currentModule, 'view');
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans antialiased text-slate-900 selection:bg-teal-500 selection:text-white">
@@ -41,30 +59,72 @@ const MainLayout: React.FC = () => {
         {/* Dynamic Content Views */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">
-            {activeTab === 'dashboard' && <DashboardView />}
-            {activeTab === 'patients' && <PatientsView />}
-            {activeTab === 'appointments' && <AppointmentsView />}
-            {activeTab === 'entry-center' && <EntryCenterView />}
-            {activeTab === 'prescriptions' && <PrescriptionsLogView />}
-            {activeTab === 'spectacles' && <SpectacleOrdersView />}
-            {(activeTab === 'lenses' || activeTab === 'lens-inventory') && <LensInventoryView />}
-            {(activeTab === 'frames' || activeTab === 'frame-inventory') && <FrameInventoryView />}
-            {(activeTab === 'retail-sales' || activeTab === 'wholesale') && <RetailSalesView />}
-            {(activeTab === 'stock-ledger' || activeTab === 'purchases' || activeTab === 'suppliers') && <PurchasesAndLedgerView />}
-            {(activeTab === 'due-management' || activeTab === 'dues') && <DueManagementView />}
-            {activeTab === 'medicines' && <MedicinesView />}
-            {(activeTab === 'crm-whatsapp' || activeTab === 'crm') && <CrmAndWhatsAppView />}
-            {activeTab === 'reports' && <ReportsView />}
-            {(activeTab === 'google-sheets' || activeTab === 'sheets-sync') && <GoogleSheetsSyncView />}
-            {(activeTab === 'settings' || activeTab === 'audit-log') && <SettingsView />}
+            {!isViewPermitted ? (
+              <PermissionDeniedCard module={currentModule} />
+            ) : (
+              <>
+                {activeTab === 'dashboard' && <DashboardView />}
+                {activeTab === 'patients' && <PatientsView />}
+                {activeTab === 'customers' && <CustomersView />}
+                {activeTab === 'appointments' && <AppointmentsView />}
+                {activeTab === 'entry-center' && <EntryCenterView />}
+                {activeTab === 'prescriptions' && <PrescriptionsLogView />}
+                {activeTab === 'spectacles' && <SpectacleOrdersView />}
+                {(activeTab === 'lenses' || activeTab === 'lens-inventory') && <LensInventoryView />}
+                {(activeTab === 'frames' || activeTab === 'frame-inventory') && <FrameInventoryView />}
+                {activeTab === 'retail-sales' && <RetailSalesView />}
+                {activeTab === 'wholesale' && <WholesaleDealersView />}
+                {(activeTab === 'stock-ledger' || activeTab === 'purchases' || activeTab === 'suppliers') && <PurchasesAndLedgerView />}
+                {(activeTab === 'due-management' || activeTab === 'dues') && <DueManagementView />}
+                {activeTab === 'medicines' && <MedicinesView />}
+                {(activeTab === 'crm-whatsapp' || activeTab === 'crm') && <CrmAndWhatsAppView />}
+                {(activeTab === 'loyalty' || activeTab === 'loyalty-rewards') && <LoyaltyRewardsView />}
+                {activeTab === 'reports' && <ReportsView />}
+                {(activeTab === 'masters' || activeTab === 'master-management') && <MasterManagementView />}
+                {(activeTab === 'google-sheets' || activeTab === 'sheets-sync') && <GoogleSheetsSyncView />}
+                {activeTab === 'audit-log' && <AuditLogPage />}
+                {(activeTab === 'settings' || activeTab === 'clinic-settings') && <ClinicSettingsPage />}
+              </>
+            )}
           </div>
         </main>
       </div>
 
       {/* Global Modals & Overlays */}
       <Patient360Modal />
+      {selectedCustomerFor360 && (
+        <Customer360Modal
+          customer={selectedCustomerFor360}
+          onClose={() => setSelectedCustomerFor360(null)}
+        />
+      )}
       <PrintModal />
       <QuickModals />
+
+      {/* AI Assistant & Copilot Modals */}
+      <AiAssistantDrawer
+        isOpen={quickModal === 'ai-assistant'}
+        onClose={() => setQuickModal(null)}
+      />
+      <AiPrescriptionOcrModal
+        isOpen={quickModal === 'ai-ocr'}
+        onClose={() => setQuickModal(null)}
+      />
+      <AiVoiceEntryModal
+        isOpen={quickModal === 'ai-voice'}
+        onClose={() => setQuickModal(null)}
+      />
+      <AiPowerCompareModal
+        isOpen={quickModal === 'ai-power-compare'}
+        onClose={() => setQuickModal(null)}
+      />
+      <AiCeoReportModal
+        isOpen={quickModal === 'ai-ceo-report'}
+        onClose={() => setQuickModal(null)}
+      />
+
+      {/* Staff Authentication & Role Profile Modal */}
+      <AuthModal />
 
       {/* Global Toast Notification */}
       {toast && (

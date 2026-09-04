@@ -14,8 +14,14 @@ import {
   Phone,
   MapPin,
   Clock,
-  Sparkles
+  Sparkles,
+  Edit3,
+  Archive,
+  RotateCcw,
+  Trash2
 } from 'lucide-react';
+import { BookAppointmentModal } from './BookAppointmentModal';
+import { EditPatientModal } from './EditPatientModal';
 
 export const PatientsView: React.FC = () => {
   const {
@@ -25,22 +31,40 @@ export const PatientsView: React.FC = () => {
     startVisitFromAppointment,
     loadPatientIntoClinical,
     setActiveTab,
-    createAppointment
+    createAppointment,
+    archivePatient,
+    restorePatient,
+    deletePatient,
+    showToast
   } = useErp();
 
   const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>('All');
+  const [filterStatus, setFilterStatus] = useState<string>('Active');
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [appointmentPatient, setAppointmentPatient] = useState<Patient | null>(null);
+  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
 
   const filtered = patients.filter(p => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.mrd.toLowerCase().includes(search.toLowerCase()) ||
-      p.mobile.includes(search) ||
-      (p.village && p.village.toLowerCase().includes(search.toLowerCase())) ||
-      p.district.toLowerCase().includes(search.toLowerCase());
+    const q = (search || '').trim().toLowerCase();
+    const pName = (p.name || '').toLowerCase();
+    const pMrd = (p.mrd || '').toLowerCase();
+    const pMob = p.mobile || '';
+    const pVillage = (p.village || '').toLowerCase();
+    const pDistrict = (p.district || '').toLowerCase();
 
-    const matchesStatus = filterStatus === 'All' || p.status === filterStatus;
+    const matchesSearch =
+      !q ||
+      pName.includes(q) ||
+      pMrd.includes(q) ||
+      pMob.includes(search) ||
+      pVillage.includes(q) ||
+      pDistrict.includes(q);
+
+    let matchesStatus = true;
+    if (filterStatus === 'Active') matchesStatus = p.status !== 'Archived';
+    else if (filterStatus === 'Archived') matchesStatus = p.status === 'Archived';
+    else if (filterStatus !== 'All') matchesStatus = p.status === filterStatus;
+
     return matchesSearch && matchesStatus;
   });
 
@@ -48,11 +72,40 @@ export const PatientsView: React.FC = () => {
     loadPatientIntoClinical(patient.mrd);
   };
 
+  const handleBookApptForPatient = (patient: Patient) => {
+    setAppointmentPatient(patient);
+    setIsBookModalOpen(true);
+  };
+
   const handleWhatsApp = (mobile: string, name: string) => {
-    const cleanMobile = mobile.replace(/[^0-9]/g, '');
+    const cleanMobile = (mobile || '').replace(/[^0-9]/g, '');
     const fullNumber = cleanMobile.length === 10 ? `91${cleanMobile}` : cleanMobile;
-    const msg = encodeURIComponent(`Hello ${name}, greetings from Paharpur Eye Care! Please let us know if you need any assistance regarding your eye consultation or spectacles.`);
+    const msg = encodeURIComponent(`Hello ${name || 'Patient'}, greetings from Paharpur Eye Care! Please let us know if you need any assistance regarding your eye consultation or spectacles.`);
     window.open(`https://wa.me/${fullNumber}?text=${msg}`, '_blank');
+  };
+
+  const handleArchivePatient = (mrd: string, name: string) => {
+    const reason = prompt(`Enter reason for archiving patient ${name} (${mrd}):`, 'Inactive / Duplicate');
+    if (reason !== null) {
+      archivePatient(mrd, reason || 'Archived by Admin');
+    }
+  };
+
+  const handleRestorePatient = (mrd: string, name: string) => {
+    if (window.confirm(`Restore archived patient ${name} (${mrd}) back to Active status?`)) {
+      restorePatient(mrd);
+    }
+  };
+
+  const handleDeletePatient = (mrd: string, name: string) => {
+    const confirmName = prompt(
+      `⚠️ ADMIN PERMANENT DELETE\nThis will remove patient ${name} (${mrd}) permanently.\nType "DELETE" to confirm:`
+    );
+    if (confirmName === 'DELETE') {
+      deletePatient(mrd);
+    } else if (confirmName !== null) {
+      showToast('Deletion cancelled: text did not match DELETE', 'warning');
+    }
   };
 
   return (
@@ -92,6 +145,7 @@ export const PatientsView: React.FC = () => {
         <div className="relative w-full md:w-96">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
+            id="input-patient-search"
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -102,11 +156,11 @@ export const PatientsView: React.FC = () => {
 
         {/* Status Filters */}
         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto">
-          {['All', 'Regular', 'New Patient', 'Follow-up Patient', 'Active'].map(st => (
+          {['Active', 'Archived', 'Regular', 'New Patient', 'Follow-up Patient', 'All'].map(st => (
             <button
               key={st}
               onClick={() => setFilterStatus(st)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
                 filterStatus === st
                   ? 'bg-teal-600 text-white shadow-2xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -196,7 +250,9 @@ export const PatientsView: React.FC = () => {
                     <td className="py-3.5 px-4">
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          patient.status === 'Regular'
+                          patient.status === 'Archived'
+                            ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                            : patient.status === 'Regular'
                             ? 'bg-blue-100 text-blue-800'
                             : patient.status === 'Follow-up Patient'
                             ? 'bg-amber-100 text-amber-800'
@@ -213,6 +269,27 @@ export const PatientsView: React.FC = () => {
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         
+                        {/* Edit Patient */}
+                        <button
+                          id={`patient-edit-${patient.mrd}`}
+                          onClick={() => setEditingPatient(patient)}
+                          className="p-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-lg text-xs font-bold transition-colors border border-slate-200"
+                          title="Edit Patient Details"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Book Appointment */}
+                        <button
+                          id={`patient-book-appt-${patient.mrd}`}
+                          onClick={() => handleBookApptForPatient(patient)}
+                          className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 rounded-lg font-bold text-[11px] flex items-center gap-1 shadow-2xs border border-teal-200"
+                          title="Book Consultation Appointment for this patient"
+                        >
+                          <Calendar className="w-3.5 h-3.5 text-teal-600" />
+                          Book Appt
+                        </button>
+
                         {/* 360 Profile Button */}
                         <button
                           id={`patient-360-${patient.mrd}`}
@@ -249,6 +326,37 @@ export const PatientsView: React.FC = () => {
                           Spectacle
                         </button>
 
+                        {/* Archive or Restore */}
+                        {patient.status === 'Archived' ? (
+                          <button
+                            id={`patient-restore-${patient.mrd}`}
+                            onClick={() => handleRestorePatient(patient.mrd, patient.name)}
+                            className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors border border-emerald-200"
+                            title="Restore Patient to Active Status"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            id={`patient-archive-${patient.mrd}`}
+                            onClick={() => handleArchivePatient(patient.mrd, patient.name)}
+                            className="p-1.5 bg-slate-100 hover:bg-amber-50 text-slate-600 hover:text-amber-700 rounded-lg text-xs font-bold transition-colors border border-slate-200"
+                            title="Archive Patient"
+                          >
+                            <Archive className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
+                        {/* Permanent Delete */}
+                        <button
+                          id={`patient-delete-${patient.mrd}`}
+                          onClick={() => handleDeletePatient(patient.mrd, patient.name)}
+                          className="p-1.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 rounded-lg text-xs font-bold transition-colors border border-slate-200"
+                          title="Permanent Delete (Admin Only)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
                       </div>
                     </td>
 
@@ -259,6 +367,25 @@ export const PatientsView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Edit Patient Modal */}
+      {editingPatient && (
+        <EditPatientModal
+          patient={editingPatient}
+          isOpen={!!editingPatient}
+          onClose={() => setEditingPatient(null)}
+        />
+      )}
+
+      {/* Book Appointment Modal */}
+      <BookAppointmentModal
+        isOpen={isBookModalOpen}
+        onClose={() => {
+          setIsBookModalOpen(false);
+          setAppointmentPatient(null);
+        }}
+        prefillPatient={appointmentPatient}
+      />
 
     </div>
   );

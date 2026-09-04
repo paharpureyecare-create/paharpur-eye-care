@@ -70,7 +70,8 @@ export const PrintModal: React.FC = () => {
               <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-900 text-white px-3 py-1 rounded-md">
                 {printModalData.type === 'prescription' && 'MEDICAL PRESCRIPTION (Rx)'}
                 {printModalData.type === 'spectacle-order' && 'SPECTACLE JOB CARD & SLIP'}
-                {printModalData.type === 'invoice' && 'TAX INVOICE / CASH BILL'}
+                {printModalData.type === 'invoice' && ((printModalData.data as any).isWholesale ? 'WHOLESALE B2B TAX INVOICE' : 'TAX INVOICE / CASH BILL')}
+                {printModalData.type === 'receipt' && 'CUSTOMER 360° IDENTITY & RX CARD'}
               </span>
               <p className="text-[10px] text-slate-400 mt-1 font-mono">
                 GSTIN: {settings?.gstin || '19ABCDE1234F1Z5'} {settings?.tradeLicenseNo ? `• Lic: ${settings.tradeLicenseNo}` : ''}
@@ -158,19 +159,19 @@ export const PrintModal: React.FC = () => {
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase block">Clinical Diagnosis</span>
                     <p className="font-bold text-slate-900">
-                      {visit.diagnosis.join(', ') || visit.customDiagnosis || 'Refractive Error'}
+                      {Array.isArray(visit.diagnosis) ? visit.diagnosis.join(', ') : visit.customDiagnosis || 'Refractive Error'}
                     </p>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase block">IOP / Slit Lamp</span>
                     <p className="font-semibold text-slate-800">
-                      IOP OD: {visit.examination.iopOd || '14'} mmHg • OS: {visit.examination.iopOs || '14'} mmHg
+                      IOP OD: {visit.examination?.iopOd || '14'} mmHg • OS: {visit.examination?.iopOs || '14'} mmHg
                     </p>
                   </div>
                 </div>
 
                 {/* Prescribed Medicines (Rx) */}
-                {visit.medicines.length > 0 && (
+                {Array.isArray(visit.medicines) && visit.medicines.length > 0 && (
                   <div className="space-y-2">
                     <h3 className="font-black text-sm text-slate-950 flex items-center gap-1.5">
                       <span className="text-base font-serif italic text-teal-800">℞</span> Prescribed Medicines
@@ -330,24 +331,30 @@ export const PrintModal: React.FC = () => {
           })()}
 
           {/* =========================================================================
-              DOCUMENT 3: RETAIL TAX INVOICE
+              DOCUMENT 3: RETAIL / WHOLESALE TAX INVOICE
              ========================================================================= */}
           {printModalData.type === 'invoice' && (() => {
-            const sale = printModalData.data as RetailSale;
+            const sale = printModalData.data as any;
+            const isWholesale = Boolean(sale.isWholesale);
+            const customerOrParty = sale.wholesaleCustomer || sale.dealerName || sale.customerName;
+
             return (
               <div className="space-y-5">
                 <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Invoice No</span>
-                    <p className="font-black text-slate-900 text-sm">{sale.invoiceNumber || (sale as any).invoiceNo}</p>
+                    <p className="font-black text-slate-900 text-sm font-mono">{sale.invoiceNumber || sale.invoiceNo}</p>
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Customer Name</span>
-                    <p className="font-bold text-slate-800">{sale.customerName} ({sale.mobile})</p>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">
+                      {isWholesale ? 'B2B Dealer / Optical Shop' : 'Customer Name'}
+                    </span>
+                    <p className="font-bold text-slate-800">{customerOrParty} ({sale.mobile})</p>
+                    {sale.gstin && <p className="text-[10px] text-slate-500 font-mono">GSTIN: {sale.gstin}</p>}
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Date & Payment</span>
-                    <p className="font-bold text-slate-800">{sale.date} • {sale.paymentMode || (sale as any).paymentMethod || 'Cash'}</p>
+                    <p className="font-bold text-slate-800">{sale.date} • {sale.paymentMode || sale.paymentMethod || 'Cash'}</p>
                   </div>
                 </div>
 
@@ -355,20 +362,20 @@ export const PrintModal: React.FC = () => {
                   <thead className="bg-slate-100 font-bold uppercase text-[10px] border-b border-slate-300">
                     <tr>
                       <th className="p-2 border-r border-slate-300">#</th>
-                      <th className="p-2 border-r border-slate-300">Item Description</th>
+                      <th className="p-2 border-r border-slate-300">Item Description & Specifications</th>
                       <th className="p-2 border-r border-slate-300 text-center">Qty</th>
-                      <th className="p-2 border-r border-slate-300 text-right">Unit Rate (₹)</th>
+                      <th className="p-2 border-r border-slate-300 text-right">Rate (₹)</th>
                       <th className="p-2 text-right">Total (₹)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-300">
-                    {sale.items?.map((it, idx) => (
+                    {sale.items?.map((it: any, idx: number) => (
                       <tr key={idx}>
                         <td className="p-2 font-bold border-r border-slate-300">{idx + 1}</td>
                         <td className="p-2 font-bold border-r border-slate-300">{it.name}</td>
-                        <td className="p-2 border-r border-slate-300 text-center">{it.quantity ?? (it as any).qty ?? 1}</td>
-                        <td className="p-2 border-r border-slate-300 text-right">₹{it.unitPrice ?? (it as any).rate ?? 0}</td>
-                        <td className="p-2 font-bold text-right">₹{it.total}</td>
+                        <td className="p-2 border-r border-slate-300 text-center font-bold">{it.quantity ?? it.qty ?? 1}</td>
+                        <td className="p-2 border-r border-slate-300 text-right font-mono">₹{it.unitPrice ?? it.rate ?? 0}</td>
+                        <td className="p-2 font-bold text-right font-mono">₹{it.total}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -378,33 +385,230 @@ export const PrintModal: React.FC = () => {
                   <div className="w-64 space-y-1.5 text-xs">
                     <div className="flex justify-between text-slate-600">
                       <span>Subtotal:</span>
-                      <span>₹{sale.subTotal}</span>
+                      <span className="font-mono">₹{sale.subTotal}</span>
                     </div>
-                    {((sale.discountTotal || (sale as any).discount || 0) > 0) && (
+                    {((sale.discountTotal || sale.discount || 0) > 0) && (
                       <div className="flex justify-between text-emerald-700 font-bold">
                         <span>Discount:</span>
-                        <span>-₹{sale.discountTotal || (sale as any).discount}</span>
+                        <span className="font-mono">-₹{sale.discountTotal || sale.discount}</span>
                       </div>
                     )}
                     <div className="flex justify-between font-black text-sm text-slate-900 border-t border-slate-300 pt-1">
                       <span>Grand Total:</span>
-                      <span>₹{sale.grandTotal ?? (sale as any).netTotal ?? sale.subTotal}</span>
+                      <span className="font-mono">₹{sale.grandTotal ?? sale.netTotal ?? sale.subTotal}</span>
                     </div>
                     <div className="flex justify-between font-bold text-emerald-700">
                       <span>Amount Paid:</span>
-                      <span>₹{sale.paid}</span>
+                      <span className="font-mono">₹{sale.paid}</span>
                     </div>
                     {sale.due > 0 && (
                       <div className="flex justify-between font-bold text-rose-600">
                         <span>Balance Due:</span>
-                        <span>₹{sale.due}</span>
+                        <span className="font-mono">₹{sale.due}</span>
                       </div>
                     )}
                   </div>
                 </div>
 
                 <div className="text-center pt-8 border-t border-slate-300 text-[10px] text-slate-400">
-                  Goods once sold cannot be returned. Lenses carry 6-month warranty on coating. Thank you!
+                  {isWholesale
+                    ? 'Wholesale optical items supplied for resale. Subject to South 24 Parganas jurisdiction.'
+                    : 'Goods once sold cannot be returned. Lenses carry standard manufacturer warranty. Thank you!'}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* =========================================================================
+              DOCUMENT 4: CUSTOMER 360° PROFILE & VISION CARD
+             ========================================================================= */}
+          {printModalData.type === 'receipt' && (() => {
+            const data = printModalData.data as any;
+            const customer = data.customer;
+            const linkedPatient = data.linkedPatient;
+            const powers = data.powers || [];
+
+            return (
+              <div className="space-y-5">
+                <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Customer ID</span>
+                    <p className="font-black text-slate-900 text-sm font-mono">{customer.customerId}</p>
+                    {customer.mrd && <p className="text-[10px] text-emerald-700 font-bold font-mono">Linked MRD: {customer.mrd}</p>}
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Customer Name & Contact</span>
+                    <p className="font-bold text-slate-800">{customer.name} ({customer.mobile})</p>
+                    <p className="text-[10px] text-slate-500">{customer.village || customer.address}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Loyalty Reward Points</span>
+                    <p className="font-extrabold text-cyan-800 text-sm">{customer.loyaltyPoints || 0} Points</p>
+                    <p className="text-[10px] text-slate-500">Tier: {customer.segment || 'Valued Member'}</p>
+                  </div>
+                </div>
+
+                {powers.length > 0 ? (
+                  <div className="space-y-2">
+                    <h3 className="font-bold text-xs uppercase tracking-wider text-slate-900">
+                      Recent Refraction & Power Prescription History
+                    </h3>
+                    <table className="w-full text-xs text-left border border-slate-300 border-collapse">
+                      <thead className="bg-slate-100 font-bold uppercase text-[10px] border-b border-slate-300">
+                        <tr>
+                          <th className="p-2 border-r border-slate-300">Date & Eye</th>
+                          <th className="p-2 border-r border-slate-300">SPH</th>
+                          <th className="p-2 border-r border-slate-300">CYL</th>
+                          <th className="p-2 border-r border-slate-300">AXIS</th>
+                          <th className="p-2 border-r border-slate-300">ADD</th>
+                          <th className="p-2 border-r border-slate-300">Dist VA</th>
+                          <th className="p-2 border-r border-slate-300">Near VA</th>
+                          <th className="p-2">PD</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-300 font-mono">
+                        <tr>
+                          <td className="p-2 font-bold font-sans border-r border-slate-300 bg-slate-50">
+                            {powers[0].date} - OD (Right)
+                          </td>
+                          <td className="p-2 border-r border-slate-300">{powers[0].odPower.sph || '0.00'}</td>
+                          <td className="p-2 border-r border-slate-300">{powers[0].odPower.cyl || '0.00'}</td>
+                          <td className="p-2 border-r border-slate-300">{powers[0].odPower.axis || '-'}</td>
+                          <td className="p-2 border-r border-slate-300">{powers[0].odPower.add || '-'}</td>
+                          <td className="p-2 border-r border-slate-300">{powers[0].odPower.distanceVa || '6/6'}</td>
+                          <td className="p-2 border-r border-slate-300">{powers[0].odPower.nearVa || 'N6'}</td>
+                          <td className="p-2">{powers[0].odPower.pd || '62'}mm</td>
+                        </tr>
+                        <tr>
+                          <td className="p-2 font-bold font-sans border-r border-slate-300 bg-slate-50">
+                            {powers[0].date} - OS (Left)
+                          </td>
+                          <td className="p-2 border-r border-slate-300">{powers[0].osPower.sph || '0.00'}</td>
+                          <td className="p-2 border-r border-slate-300">{powers[0].osPower.cyl || '0.00'}</td>
+                          <td className="p-2 border-r border-slate-300">{powers[0].osPower.axis || '-'}</td>
+                          <td className="p-2 border-r border-slate-300">{powers[0].osPower.add || '-'}</td>
+                          <td className="p-2 border-r border-slate-300">{powers[0].osPower.distanceVa || '6/6'}</td>
+                          <td className="p-2 border-r border-slate-300">{powers[0].osPower.nearVa || 'N6'}</td>
+                          <td className="p-2">{powers[0].osPower.pd || '62'}mm</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-slate-500 text-xs italic">No power history recorded yet.</p>
+                )}
+
+                <div className="grid grid-cols-2 gap-4 border p-3 rounded-xl border-slate-200 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Lifetime Spend</span>
+                    <p className="font-bold text-slate-900 font-mono">₹{data.totalSpent || 0}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Outstanding Balance</span>
+                    <p className="font-bold text-slate-900 font-mono">₹{data.totalDue || 0}</p>
+                  </div>
+                </div>
+
+                <div className="text-center pt-8 border-t border-slate-300 text-[10px] text-slate-400">
+                  Paharpur Eye Care Vision Card • Please carry this card during subsequent eye tests & spectacle orders.
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* =========================================================================
+              DOCUMENT 5: APPOINTMENT TOKEN & BOOKING SLIP
+             ========================================================================= */}
+          {printModalData.type === 'appointment' && (() => {
+            const apt = printModalData.data as any;
+            return (
+              <div className="space-y-5">
+                {/* Token Badge */}
+                <div className="bg-teal-50 border-2 border-teal-500 p-4 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase text-teal-800 tracking-wider">
+                      OPD CONSULTATION TOKEN / SLIP
+                    </span>
+                    <h2 className="text-2xl font-black text-teal-950 font-mono mt-0.5">
+                      #{apt.id}
+                    </h2>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-slate-600 block">Date & Time:</span>
+                    <span className="text-sm font-black text-slate-950">
+                      {apt.date} • {apt.time}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Patient Information Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Patient Name</span>
+                    <p className="font-extrabold text-slate-900 text-sm">{apt.patientName}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">MRD # / Age / Sex</span>
+                    <p className="font-bold text-slate-800">
+                      {apt.mrd} • {apt.age ? `${apt.age}Y` : '35Y'} / {apt.gender || 'Male'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Mobile Number</span>
+                    <p className="font-bold text-slate-800">{apt.mobile}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Consultant Doctor</span>
+                    <p className="font-bold text-teal-800">{apt.doctor}</p>
+                  </div>
+                </div>
+
+                {/* Location & Village */}
+                <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Village / Gram</span>
+                    <p className="font-bold text-slate-900">{apt.village || 'Paharpur'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Address / District</span>
+                    <p className="font-bold text-slate-900">{apt.address || apt.district || 'South 24 Parganas'}</p>
+                  </div>
+                </div>
+
+                {/* Chief Complaints & History */}
+                <div className="space-y-2 border border-slate-200 p-3.5 rounded-xl">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Chief Eye Complaints:</span>
+                    <p className="font-bold text-slate-900 text-xs mt-0.5">
+                      {apt.chiefComplaints || apt.symptoms || 'General Eye Examination & Vision Check'}
+                    </p>
+                  </div>
+                  {apt.medicalHistory && apt.medicalHistory.length > 0 && (
+                    <div className="pt-2 border-t border-slate-100">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Medical History:</span>
+                      <p className="font-semibold text-slate-800 text-xs mt-0.5">
+                        {Array.isArray(apt.medicalHistory) ? apt.medicalHistory.join(', ') : apt.medicalHistory}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Fee & Payment */}
+                <div className="flex items-center justify-between bg-slate-100 p-3 rounded-xl border border-slate-200">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">Consultation Fee:</span>
+                    <span className="text-sm font-black text-slate-900 ml-2">₹{apt.fee || 200}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">Payment Status:</span>
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded ml-2">
+                      {apt.paidAmount ? `PAID (${apt.paymentMethod || 'Cash'})` : 'CONFIRMED'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-center pt-6 border-t border-slate-300 text-[10px] text-slate-400">
+                  Please show this slip at the reception & consultation desk. Emergency Eye Helpline: +91 98301 23456.
                 </div>
               </div>
             );

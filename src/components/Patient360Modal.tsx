@@ -159,12 +159,16 @@ export const Patient360Modal: React.FC = () => {
   const patient = selectedPatientFor360;
 
   // Filter patient's historical records, sorted chronologically (latest first)
-  const patientVisits: ClinicalVisit[] = clinicalVisits
+  const allVisits = Array.isArray(clinicalVisits) ? clinicalVisits : [];
+  const allOrders = Array.isArray(spectacleOrders) ? spectacleOrders : [];
+  const allSales = Array.isArray(retailSales) ? retailSales : [];
+
+  const patientVisits: ClinicalVisit[] = allVisits
     .filter(v => v.mrd === patient.mrd)
     .sort((a, b) => new Date(b.visitDate || b.timestamp).getTime() - new Date(a.visitDate || a.timestamp).getTime());
 
-  const patientOrders = spectacleOrders.filter(o => o.mrd === patient.mrd);
-  const patientSales = retailSales.filter(s => s.mrd === patient.mrd);
+  const patientOrders = allOrders.filter(o => o.mrd === patient.mrd);
+  const patientSales = allSales.filter(s => (s.mrdOrCustomerId || (s as any).mrd) === patient.mrd);
 
   const defaultEyePower: EyePower = {
     sph: '0.00',

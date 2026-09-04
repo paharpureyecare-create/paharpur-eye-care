@@ -24,13 +24,21 @@ export const PrescriptionsLogView: React.FC = () => {
 
   const [search, setSearch] = useState('');
 
-  const filtered = clinicalVisits.filter(v => {
+  const filtered = (clinicalVisits || []).filter(v => {
+    const q = (search || '').trim().toLowerCase();
+    const pName = (v.patientName || '').toLowerCase();
+    const pMrd = (v.mrd || '').toLowerCase();
+    const pMob = v.mobile || '';
+    const vId = (v.rxId || v.visitId || (v as any).id || '').toLowerCase();
+    const vDoc = (v.doctor || '').toLowerCase();
+
     return (
-      v.patientName.toLowerCase().includes(search.toLowerCase()) ||
-      v.mrd.toLowerCase().includes(search.toLowerCase()) ||
-      v.mobile.includes(search) ||
-      v.id.toLowerCase().includes(search.toLowerCase()) ||
-      v.doctor.toLowerCase().includes(search.toLowerCase())
+      !q ||
+      pName.includes(q) ||
+      pMrd.includes(q) ||
+      pMob.includes(search) ||
+      vId.includes(q) ||
+      vDoc.includes(q)
     );
   });
 
@@ -58,7 +66,7 @@ export const PrescriptionsLogView: React.FC = () => {
               Prescriptions Archive & Rx History (প্রেসক্রিপশন লগ)
             </h1>
             <span className="bg-teal-50 text-teal-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-teal-200">
-              {clinicalVisits.length} Records
+              {(clinicalVisits || []).length} Records
             </span>
           </div>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
@@ -96,18 +104,22 @@ export const PrescriptionsLogView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map(visit => {
+              {filtered.map((visit, idx) => {
                 const patObj = patients.find(p => p.mrd === visit.mrd);
+                const rxDisplay = visit.rxId || visit.visitId || (visit as any).id || `RX-PEC-${idx + 1}`;
+                const dateDisplay = visit.visitDate || (visit as any).date || (visit.timestamp ? visit.timestamp.split('T')[0] : '2026-08-23');
+                const rowKey = `rx-item-${visit.visitId || visit.rxId || (visit as any).id || visit.mrd}-${idx}`;
+
                 return (
-                  <tr key={visit.id} className="hover:bg-teal-50/30 transition-colors">
+                  <tr key={rowKey} className="hover:bg-teal-50/30 transition-colors">
                     
                     {/* Rx ID */}
                     <td className="py-3.5 px-4 font-bold text-slate-900">
-                      <span className="bg-teal-50 text-teal-900 border border-teal-200 px-2 py-0.5 rounded text-[11px] font-extrabold block w-fit">
-                        {visit.id}
+                      <span className="bg-teal-50 text-teal-900 border border-teal-200 px-2 py-0.5 rounded text-[11px] font-extrabold block w-fit font-mono">
+                        {rxDisplay}
                       </span>
                       <span className="text-[10px] text-slate-400 font-medium block mt-1">
-                        {visit.date}
+                        {dateDisplay}
                       </span>
                     </td>
 
@@ -137,20 +149,20 @@ export const PrescriptionsLogView: React.FC = () => {
                     {/* Refraction */}
                     <td className="py-3.5 px-4">
                       <div className="font-semibold text-slate-900">
-                        <strong className="text-teal-700">OD:</strong> SPH {visit.odPower.sph || '0.00'} | CYL {visit.odPower.cyl || '0.00'} | AX {visit.odPower.axis || '-'} | ADD {visit.odPower.add || '-'}
+                        <strong className="text-teal-700">OD:</strong> SPH {visit.odPower?.sph || '0.00'} | CYL {visit.odPower?.cyl || '0.00'} | AX {visit.odPower?.axis || '-'} | ADD {visit.odPower?.add || '-'}
                       </div>
                       <div className="font-semibold text-slate-900 mt-0.5">
-                        <strong className="text-blue-700">OS:</strong> SPH {visit.osPower.sph || '0.00'} | CYL {visit.osPower.cyl || '0.00'} | AX {visit.osPower.axis || '-'} | ADD {visit.osPower.add || '-'}
+                        <strong className="text-blue-700">OS:</strong> SPH {visit.osPower?.sph || '0.00'} | CYL {visit.osPower?.cyl || '0.00'} | AX {visit.osPower?.axis || '-'} | ADD {visit.osPower?.add || '-'}
                       </div>
                     </td>
 
                     {/* Diagnosis & Meds */}
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-teal-900">
-                        {visit.diagnosis.join(', ') || visit.customDiagnosis || 'Refractive Error'}
+                        {Array.isArray(visit.diagnosis) ? visit.diagnosis.join(', ') : visit.customDiagnosis || 'Refractive Error'}
                       </div>
                       <div className="text-[11px] text-slate-500 mt-0.5">
-                        {visit.medicines.length} Medicines Prescribed
+                        {(Array.isArray(visit.medicines) ? visit.medicines : []).length} Medicines Prescribed
                       </div>
                     </td>
 

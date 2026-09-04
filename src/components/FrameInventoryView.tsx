@@ -18,22 +18,30 @@ export const FrameInventoryView: React.FC = () => {
   const [filterBrand, setFilterBrand] = useState<string>('All');
   const [editingFrame, setEditingFrame] = useState<FrameMaster | null>(null);
 
-  const brands = ['All', ...Array.from(new Set(frames.map(f => f.brand)))];
+  const brands = ['All', ...Array.from(new Set((frames || []).map(f => f.brand || 'Unbranded')))];
 
-  const filtered = frames.filter(f => {
+  const filtered = (frames || []).filter(f => {
+    const q = (search || '').trim().toLowerCase();
+    const sku = (f.sku || '').toLowerCase();
+    const br = (f.brand || '').toLowerCase();
+    const mdl = (f.model || '').toLowerCase();
+    const clr = (f.colour || '').toLowerCase();
+    const mat = (f.material || '').toLowerCase();
+
     const matchesSearch =
-      f.sku.toLowerCase().includes(search.toLowerCase()) ||
-      f.brand.toLowerCase().includes(search.toLowerCase()) ||
-      f.model.toLowerCase().includes(search.toLowerCase()) ||
-      f.colour.toLowerCase().includes(search.toLowerCase()) ||
-      f.material.toLowerCase().includes(search.toLowerCase());
+      !q ||
+      sku.includes(q) ||
+      br.includes(q) ||
+      mdl.includes(q) ||
+      clr.includes(q) ||
+      mat.includes(q);
 
     const matchesBrand = filterBrand === 'All' || f.brand === filterBrand;
     return matchesSearch && matchesBrand;
   });
 
-  const totalFrames = frames.reduce((acc, f) => acc + f.currentStock, 0);
-  const totalValuation = frames.reduce((acc, f) => acc + f.currentStock * f.retailRate, 0);
+  const totalFrames = (frames || []).reduce((acc, f) => acc + (f.currentStock || 0), 0);
+  const totalValuation = (frames || []).reduce((acc, f) => acc + (f.currentStock || 0) * (f.retailRate || 0), 0);
 
   return (
     <div className="space-y-6 pb-12">

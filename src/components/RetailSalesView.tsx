@@ -21,18 +21,24 @@ export const RetailSalesView: React.FC = () => {
   const [methodFilter, setMethodFilter] = useState<string>('All');
 
   const filtered = retailSales.filter(s => {
-    const matchesSearch =
-      s.invoiceNo.toLowerCase().includes(search.toLowerCase()) ||
-      s.customerName.toLowerCase().includes(search.toLowerCase()) ||
-      (s.mrd && s.mrd.toLowerCase().includes(search.toLowerCase())) ||
-      (s.mobile && s.mobile.includes(search));
+    const invNo = (s.invoiceNumber || (s as any).invoiceNo || '').toLowerCase();
+    const custName = (s.customerName || '').toLowerCase();
+    const mrd = (s.mrdOrCustomerId || (s as any).mrd || '').toLowerCase();
+    const mob = s.mobile || '';
+    const q = (search || '').toLowerCase();
 
-    const matchesMethod = methodFilter === 'All' || s.paymentMethod === methodFilter;
+    const matchesSearch =
+      invNo.includes(q) ||
+      custName.includes(q) ||
+      mrd.includes(q) ||
+      mob.includes(search);
+
+    const matchesMethod = methodFilter === 'All' || (s.paymentMode || (s as any).paymentMethod) === methodFilter;
     return matchesSearch && matchesMethod;
   });
 
-  const totalSalesRevenue = retailSales.reduce((acc, s) => acc + s.netTotal, 0);
-  const totalDueAmount = retailSales.reduce((acc, s) => acc + s.due, 0);
+  const totalSalesRevenue = retailSales.reduce((acc, s) => acc + (s.grandTotal || (s as any).netTotal || 0), 0);
+  const totalDueAmount = retailSales.reduce((acc, s) => acc + (s.due || 0), 0);
 
   const handlePrint = (sale: RetailSale) => {
     setPrintModalData({
@@ -140,82 +146,90 @@ export const RetailSalesView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map(sale => (
-                <tr key={sale.invoiceNo} className="hover:bg-teal-50/30 transition-colors">
-                  
-                  {/* Invoice */}
-                  <td className="py-3.5 px-4">
-                    <span className="font-bold text-teal-950 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded text-[11px] block w-fit">
-                      {sale.invoiceNo}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium block mt-1">
-                      {sale.date}
-                    </span>
-                  </td>
+              {filtered.map((sale: any) => {
+                const invNumber = sale.invoiceNumber || sale.invoiceNo || 'INV-TEMP';
+                const pMode = sale.paymentMode || sale.paymentMethod || 'Cash';
+                const totalAmt = sale.grandTotal ?? sale.netTotal ?? 0;
+                const itemsList = sale.items || [];
+                const patientMrd = sale.mrdOrCustomerId || sale.mrd;
 
-                  {/* Customer */}
-                  <td className="py-3.5 px-4">
-                    <div className="font-bold text-slate-900 text-sm">{sale.customerName}</div>
-                    <div className="text-[11px] text-slate-500">
-                      {sale.mrd ? `MRD: ${sale.mrd} • ` : ''}{sale.mobile || 'Walk-in customer'}
-                    </div>
-                  </td>
-
-                  {/* Items */}
-                  <td className="py-3.5 px-4">
-                    <div className="space-y-0.5">
-                      {sale.items.map((it, idx) => (
-                        <div key={idx} className="text-slate-800 font-medium">
-                          {it.name} <span className="text-slate-400 font-normal">({it.qty}x @ ₹{it.rate})</span>
-                        </div>
-                      ))}
-                    </div>
-                  </td>
-
-                  {/* Pricing */}
-                  <td className="py-3.5 px-4">
-                    <div className="font-extrabold text-slate-900 text-sm">₹{sale.netTotal}</div>
-                    {sale.discount > 0 && (
-                      <span className="text-[10px] text-emerald-600 font-bold">
-                        (Discount: ₹{sale.discount})
+                return (
+                  <tr key={invNumber} className="hover:bg-teal-50/30 transition-colors">
+                    
+                    {/* Invoice */}
+                    <td className="py-3.5 px-4">
+                      <span className="font-bold text-teal-950 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded text-[11px] block w-fit">
+                        {invNumber}
                       </span>
-                    )}
-                  </td>
+                      <span className="text-[10px] text-slate-400 font-medium block mt-1">
+                        {sale.date}
+                      </span>
+                    </td>
 
-                  {/* Paid / Due */}
-                  <td className="py-3.5 px-4">
-                    <div className="text-emerald-700 font-bold">Paid: ₹{sale.paid}</div>
-                    {sale.due > 0 ? (
-                      <div className="text-rose-600 font-bold text-[11px]">Due: ₹{sale.due}</div>
-                    ) : (
-                      <div className="text-slate-400 text-[10px]">No due balance</div>
-                    )}
-                  </td>
+                    {/* Customer */}
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-slate-900 text-sm">{sale.customerName || 'Walk-in Customer'}</div>
+                      <div className="text-[11px] text-slate-500">
+                        {patientMrd ? `MRD: ${patientMrd} • ` : ''}{sale.mobile || 'Walk-in customer'}
+                      </div>
+                    </td>
 
-                  {/* Payment Method */}
-                  <td className="py-3.5 px-4">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
-                      {sale.paymentMethod === 'UPI' && <QrCode className="w-3 h-3 text-indigo-600" />}
-                      {sale.paymentMethod === 'Cash' && <Banknote className="w-3 h-3 text-emerald-600" />}
-                      {sale.paymentMethod === 'Card' && <CreditCard className="w-3 h-3 text-blue-600" />}
-                      {sale.paymentMethod}
-                    </span>
-                  </td>
+                    {/* Items */}
+                    <td className="py-3.5 px-4">
+                      <div className="space-y-0.5">
+                        {itemsList.map((it: any, idx: number) => (
+                          <div key={idx} className="text-slate-800 font-medium">
+                            {it.name} <span className="text-slate-400 font-normal">({it.quantity ?? it.qty ?? 1}x @ ₹{it.unitPrice ?? it.rate ?? 0})</span>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
 
-                  {/* Actions */}
-                  <td className="py-3.5 px-4 text-right">
-                    <button
-                      onClick={() => handlePrint(sale)}
-                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold flex items-center gap-1 ml-auto transition-colors"
-                      title="Print Invoice"
-                    >
-                      <Printer className="w-3.5 h-3.5 text-teal-600" />
-                      Print Bill
-                    </button>
-                  </td>
+                    {/* Pricing */}
+                    <td className="py-3.5 px-4">
+                      <div className="font-extrabold text-slate-900 text-sm">₹{totalAmt}</div>
+                      {(sale.discountTotal > 0 || sale.discount > 0) && (
+                        <span className="text-[10px] text-emerald-600 font-bold">
+                          (Discount: ₹{sale.discountTotal || sale.discount})
+                        </span>
+                      )}
+                    </td>
 
-                </tr>
-              ))}
+                    {/* Paid / Due */}
+                    <td className="py-3.5 px-4">
+                      <div className="text-emerald-700 font-bold">Paid: ₹{sale.paid || 0}</div>
+                      {sale.due > 0 ? (
+                        <div className="text-rose-600 font-bold text-[11px]">Due: ₹{sale.due}</div>
+                      ) : (
+                        <div className="text-slate-400 text-[10px]">No due balance</div>
+                      )}
+                    </td>
+
+                    {/* Payment Method */}
+                    <td className="py-3.5 px-4">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
+                        {pMode === 'UPI' && <QrCode className="w-3 h-3 text-indigo-600" />}
+                        {pMode === 'Cash' && <Banknote className="w-3 h-3 text-emerald-600" />}
+                        {pMode === 'Card' && <CreditCard className="w-3 h-3 text-blue-600" />}
+                        {pMode}
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-3.5 px-4 text-right">
+                      <button
+                        onClick={() => handlePrint(sale)}
+                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold flex items-center gap-1 ml-auto transition-colors"
+                        title="Print Invoice"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-teal-600" />
+                        Print Bill
+                      </button>
+                    </td>
+
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

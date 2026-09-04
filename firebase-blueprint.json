@@ -1,0 +1,295 @@
+{
+  "entities": {
+    "patients": {
+      "title": "Patients",
+      "description": "Patient clinical registry records",
+      "fields": {
+        "mrd": { "type": "string", "description": "Medical Record Number" },
+        "name": { "type": "string", "description": "Patient full name" },
+        "mobile": { "type": "string", "description": "Contact mobile number" },
+        "age": { "type": "number", "description": "Patient age in years" },
+        "gender": { "type": "string", "description": "Gender" },
+        "village": { "type": "string", "description": "Village or address" },
+        "regDate": { "type": "string", "description": "Registration date" },
+        "createdAt": { "type": "string", "description": "Record creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Last update timestamp" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "customers": {
+      "title": "Customers",
+      "description": "Optical retail customers and 360 profiles",
+      "fields": {
+        "customerId": { "type": "string", "description": "Unique Customer ID" },
+        "name": { "type": "string", "description": "Customer Name" },
+        "mobile": { "type": "string", "description": "Mobile number" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Update timestamp" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "appointments": {
+      "title": "Appointments",
+      "description": "Clinical appointments and visits queue",
+      "fields": {
+        "id": { "type": "string", "description": "Appointment ID" },
+        "mrd": { "type": "string", "description": "Patient MRD" },
+        "patientName": { "type": "string", "description": "Patient Name" },
+        "doctor": { "type": "string", "description": "Assigned Doctor" },
+        "date": { "type": "string", "description": "Appointment Date" },
+        "status": { "type": "string", "description": "Status" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "clinical_visits": {
+      "title": "Clinical Visits",
+      "description": "Comprehensive ophthalmic examination & visits",
+      "fields": {
+        "visitId": { "type": "string", "description": "Visit ID" },
+        "mrd": { "type": "string", "description": "Patient MRD" },
+        "visitDate": { "type": "string", "description": "Visit Date" },
+        "doctor": { "type": "string", "description": "Doctor Name" },
+        "optometrist": { "type": "string", "description": "Optometrist Name" },
+        "diagnosis": { "type": "array", "description": "Diagnoses" },
+        "examination": { "type": "object", "description": "Clinical exam findings" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "prescriptions": {
+      "title": "Prescriptions",
+      "description": "Prescription logs and optical recommendations",
+      "fields": {
+        "id": { "type": "string", "description": "Prescription ID" },
+        "mrd": { "type": "string", "description": "Patient MRD" },
+        "doctor": { "type": "string", "description": "Doctor" },
+        "medicines": { "type": "array", "description": "Prescribed medicines" },
+        "advice": { "type": "string", "description": "Advice notes" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "spectacle_orders": {
+      "title": "Spectacle Orders",
+      "description": "Spectacle job cards and fitting orders",
+      "fields": {
+        "orderId": { "type": "string", "description": "Order ID" },
+        "customerName": { "type": "string", "description": "Customer Name" },
+        "mobile": { "type": "string", "description": "Contact Mobile" },
+        "status": { "type": "string", "description": "Production Status" },
+        "total": { "type": "number", "description": "Order Total" },
+        "advance": { "type": "number", "description": "Advance paid" },
+        "due": { "type": "number", "description": "Due amount" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "retail_sales": {
+      "title": "Retail Sales & Invoices",
+      "description": "Cash memo, tax invoices and retail transactions",
+      "fields": {
+        "invoiceNumber": { "type": "string", "description": "Invoice number" },
+        "customerName": { "type": "string", "description": "Customer Name" },
+        "grandTotal": { "type": "number", "description": "Total Amount" },
+        "paid": { "type": "number", "description": "Paid Amount" },
+        "due": { "type": "number", "description": "Balance Due" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "wholesale_sales": {
+      "title": "Wholesale Sales",
+      "description": "Dealer wholesale stock orders and invoices",
+      "fields": {
+        "invoiceNumber": { "type": "string", "description": "Wholesale Invoice" },
+        "dealerId": { "type": "string", "description": "Dealer ID" },
+        "totalAmount": { "type": "number", "description": "Total" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "medicines": {
+      "title": "Medicines Master",
+      "description": "Eye drops, ointments, oral medications inventory",
+      "fields": {
+        "id": { "type": "string", "description": "Medicine ID" },
+        "name": { "type": "string", "description": "Brand Name" },
+        "currentStock": { "type": "number", "description": "Available stock" },
+        "sellingPrice": { "type": "number", "description": "Selling Price" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "frames": {
+      "title": "Frames Inventory",
+      "description": "Optical frames master and inventory count",
+      "fields": {
+        "sku": { "type": "string", "description": "Frame SKU" },
+        "brand": { "type": "string", "description": "Brand" },
+        "stock": { "type": "number", "description": "Stock count" },
+        "sellingPrice": { "type": "number", "description": "Selling Price" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "lenses": {
+      "title": "Lens Inventory",
+      "description": "Ophthalmic lens matrix and power stock",
+      "fields": {
+        "lensCode": { "type": "string", "description": "Unique Lens Code" },
+        "sph": { "type": "string", "description": "Spherical Power" },
+        "cyl": { "type": "string", "description": "Cylinder Power" },
+        "brand": { "type": "string", "description": "Brand" },
+        "currentStock": { "type": "number", "description": "Stock count" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "stock_movements": {
+      "title": "Stock Transactions & Ledger",
+      "description": "Inventory movement audit ledger",
+      "fields": {
+        "id": { "type": "string", "description": "Movement ID" },
+        "itemCode": { "type": "string", "description": "Item Code" },
+        "quantity": { "type": "number", "description": "Quantity moved" },
+        "type": { "type": "string", "description": "IN / OUT / SALE / PURCHASE / ADJUST" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "payments": {
+      "title": "Payments Record",
+      "description": "Payment receipts, dues collections and deposits",
+      "fields": {
+        "paymentId": { "type": "string", "description": "Payment ID" },
+        "invoiceNumber": { "type": "string", "description": "Referenced invoice" },
+        "amount": { "type": "number", "description": "Amount paid" },
+        "mode": { "type": "string", "description": "Payment mode" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "suppliers": {
+      "title": "Suppliers",
+      "description": "Optical lens and frame vendors",
+      "fields": {
+        "id": { "type": "string", "description": "Supplier ID" },
+        "name": { "type": "string", "description": "Supplier Name" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "dealers": {
+      "title": "Wholesale Dealers",
+      "description": "Wholesale optical stores and lab dealers",
+      "fields": {
+        "id": { "type": "string", "description": "Dealer ID" },
+        "name": { "type": "string", "description": "Dealer Name" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "loyalty_transactions": {
+      "title": "Loyalty Transactions",
+      "description": "Reward points earned and redeemed",
+      "fields": {
+        "id": { "type": "string", "description": "Transaction ID" },
+        "customerId": { "type": "string", "description": "Customer ID" },
+        "points": { "type": "number", "description": "Points delta" },
+        "type": { "type": "string", "description": "EARN / REDEEM / ADJUST" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "masters": {
+      "title": "Master Management",
+      "description": "Lookup categories, coatings, brands and clinical presets",
+      "fields": {
+        "id": { "type": "string", "description": "Master Item ID" },
+        "categoryKey": { "type": "string", "description": "Category Key" },
+        "name": { "type": "string", "description": "Item Name" },
+        "active": { "type": "boolean", "description": "Status" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "clinic_settings": {
+      "title": "Clinic Settings",
+      "description": "Shop information, print preferences, prefixes",
+      "fields": {
+        "id": { "type": "string", "description": "Document ID 'main'" },
+        "shopName": { "type": "string", "description": "Clinic Name" },
+        "address": { "type": "string", "description": "Address" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "audit_logs": {
+      "title": "Audit Logs",
+      "description": "System action history and modification trails",
+      "fields": {
+        "id": { "type": "string", "description": "Log ID" },
+        "user": { "type": "string", "description": "Staff name or email" },
+        "action": { "type": "string", "description": "Action performed" },
+        "timestamp": { "type": "string", "description": "Log timestamp" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "users": {
+      "title": "ERP Users",
+      "description": "Staff user accounts and assigned roles",
+      "fields": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "User email" },
+        "role": { "type": "string", "description": "Assigned ERP role" },
+        "displayName": { "type": "string", "description": "Full Name" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    }
+  }
+}
