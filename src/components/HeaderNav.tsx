@@ -16,7 +16,8 @@ import {
   X,
   Shield,
   User,
-  LogIn
+  LogIn,
+  LogOut
 } from 'lucide-react';
 
 export const HeaderNav: React.FC = () => {
@@ -40,7 +41,10 @@ export const HeaderNav: React.FC = () => {
     cloudSyncStatus,
     currentUser,
     firebaseUser,
-    setIsAuthModalOpen
+    setIsAuthModalOpen,
+    logoutAccount,
+    hasPermission,
+    checkAndExecuteAction
   } = useErp();
 
   const [isSyncing, setIsSyncing] = useState(false);
@@ -346,7 +350,7 @@ export const HeaderNav: React.FC = () => {
                 </button>
                 <button
                   id="action-new-patient"
-                  onClick={() => setQuickModal('new-patient')}
+                  onClick={() => checkAndExecuteAction('Patients', 'create', () => setQuickModal('new-patient'), 'New Patient Registration')}
                   className="w-full text-left px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-teal-50 hover:text-teal-800 flex items-center gap-2 border-t border-slate-100"
                 >
                   <UserCheck className="w-4 h-4 text-teal-600" />
@@ -354,7 +358,7 @@ export const HeaderNav: React.FC = () => {
                 </button>
                 <button
                   id="action-new-apt"
-                  onClick={() => setQuickModal('new-appointment')}
+                  onClick={() => checkAndExecuteAction('Appointments', 'create', () => setQuickModal('new-appointment'), 'Book Appointment')}
                   className="w-full text-left px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-teal-50 hover:text-teal-800 flex items-center gap-2"
                 >
                   <Calendar className="w-4 h-4 text-blue-600" />
@@ -362,7 +366,7 @@ export const HeaderNav: React.FC = () => {
                 </button>
                 <button
                   id="action-new-spectacle"
-                  onClick={() => setQuickModal('new-order')}
+                  onClick={() => checkAndExecuteAction('Spectacle Orders', 'create', () => setQuickModal('new-order'), 'Spectacle Order Booking')}
                   className="w-full text-left px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-teal-50 hover:text-teal-800 flex items-center gap-2"
                 >
                   <Glasses className="w-4 h-4 text-amber-600" />
@@ -370,7 +374,7 @@ export const HeaderNav: React.FC = () => {
                 </button>
                 <button
                   id="action-new-sale"
-                  onClick={() => setQuickModal('new-sale')}
+                  onClick={() => checkAndExecuteAction('Retail POS', 'create', () => setQuickModal('new-sale'), 'Retail Walk-in Sale')}
                   className="w-full text-left px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-teal-50 hover:text-teal-800 flex items-center gap-2"
                 >
                   <ShoppingBag className="w-4 h-4 text-emerald-600" />
@@ -378,7 +382,7 @@ export const HeaderNav: React.FC = () => {
                 </button>
                 <button
                   id="action-collect-due"
-                  onClick={() => setQuickModal('collect-due')}
+                  onClick={() => checkAndExecuteAction('Due Management', 'edit', () => setQuickModal('collect-due'), 'Collect Due Payment')}
                   className="w-full text-left px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-teal-50 hover:text-teal-800 flex items-center gap-2 border-t border-slate-100"
                 >
                   <CreditCard className="w-4 h-4 text-purple-600" />
@@ -387,27 +391,45 @@ export const HeaderNav: React.FC = () => {
               </div>
             </div>
 
-            {/* Role Switcher */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
-              <span className="text-[10px] font-semibold text-slate-500 px-1.5 uppercase hidden lg:inline">
-                Role:
-              </span>
-              <select
-                id="role-select"
-                value={role}
-                onChange={e => setRole(e.target.value as UserRole)}
-                className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer py-0.5 pr-2"
-              >
-                <option value="Admin">ADMIN (Full Access)</option>
-                <option value="Receptionist">RECEPTION (Front Desk)</option>
-                <option value="Optometrist">OPTOMETRIST (Vision & Clinical)</option>
-                <option value="Doctor">DOCTOR (Senior Clinical)</option>
-                <option value="Sales">SALES (Optical POS & Orders)</option>
-                <option value="Accountant">ACCOUNTANT (Ledgers & Dues)</option>
-                <option value="Marketing">MARKETING (CRM & Campaigns)</option>
-                <option value="Read Only">READ ONLY (Auditor)</option>
-              </select>
-            </div>
+            {/* Role Switcher or Role Badge */}
+            {(currentUser?.role === 'Admin' || role === 'Admin') ? (
+              <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+                <span className="text-[10px] font-semibold text-slate-500 px-1.5 uppercase hidden lg:inline">
+                  Role:
+                </span>
+                <select
+                  id="role-select"
+                  value={role}
+                  onChange={e => setRole(e.target.value as UserRole)}
+                  className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer py-0.5 pr-2"
+                >
+                  <option value="Admin">ADMIN (Full Access)</option>
+                  <option value="Receptionist">RECEPTION (Front Desk)</option>
+                  <option value="Optometrist">OPTOMETRIST (Vision & Clinical)</option>
+                  <option value="Doctor">DOCTOR (Senior Clinical)</option>
+                  <option value="Sales">SALES (Optical POS & Orders)</option>
+                  <option value="Accountant">ACCOUNTANT (Ledgers & Dues)</option>
+                  <option value="Marketing">MARKETING (CRM & Campaigns)</option>
+                  <option value="Read Only">READ ONLY (Auditor)</option>
+                </select>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center px-2.5 py-1 bg-slate-100 rounded-lg border border-slate-200 text-xs font-bold text-slate-700">
+                  <span className="w-2 h-2 rounded-full bg-teal-500 mr-1.5"></span>
+                  <span>{currentUser?.role || role}</span>
+                </div>
+                {currentUser?.customPermissions && Object.keys(currentUser.customPermissions).length > 0 && (
+                  <span
+                    title="This staff account has individual permission overrides configured"
+                    className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300"
+                  >
+                    <Shield className="w-3 h-3 text-purple-600" />
+                    Custom Privileges
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Staff User Profile & Firebase Auth Modal Trigger */}
             <button
@@ -436,6 +458,16 @@ export const HeaderNav: React.FC = () => {
                   {currentUser?.role || role}
                 </div>
               </div>
+            </button>
+
+            {/* Sign Out Button */}
+            <button
+              id="header-logout-btn"
+              onClick={logoutAccount}
+              title="Sign Out / Log Out from ERP"
+              className="p-2 rounded-xl border border-slate-200 hover:border-rose-300 bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-600 transition-all"
+            >
+              <LogOut className="w-4 h-4" />
             </button>
 
           </div>

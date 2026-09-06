@@ -24,9 +24,20 @@ import {
   Database,
   Award
 } from 'lucide-react';
+import { getModuleForTab } from '../services/permissionService';
 
 export const SidebarNav: React.FC = () => {
-  const { activeTab, setActiveTab, appointments, spectacleOrders, frames, lenses, retailSales, setQuickModal } = useErp();
+  const {
+    activeTab,
+    setActiveTab,
+    appointments,
+    spectacleOrders,
+    frames,
+    lenses,
+    retailSales,
+    setQuickModal,
+    hasPermission
+  } = useErp();
 
   const waitingAppointments = appointments.filter(a => a.status === 'Waiting' || a.status === 'Booked').length;
   const activeOrders = spectacleOrders.filter(o => o.status === 'In Production' || o.status === 'Ready' || o.status === 'Lens Ordered').length;
@@ -144,6 +155,13 @@ export const SidebarNav: React.FC = () => {
     }
   ];
 
+  const permittedNavGroups = navGroups
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => hasPermission(getModuleForTab(item.id), 'view'))
+    }))
+    .filter(group => group.items.length > 0);
+
   return (
     <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0 min-h-[calc(100vh-4rem)] border-r border-slate-800">
       {/* Prominent AI Assistant Card */}
@@ -166,7 +184,7 @@ export const SidebarNav: React.FC = () => {
       </div>
 
       <div className="p-4 flex-1 overflow-y-auto space-y-6 custom-scrollbar">
-        {navGroups.map((group, gIdx) => (
+        {permittedNavGroups.map((group, gIdx) => (
           <div key={gIdx} className="space-y-1">
             <div className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               {group.title}

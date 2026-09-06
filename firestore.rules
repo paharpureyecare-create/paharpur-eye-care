@@ -38,6 +38,8 @@ service cloud.firestore {
       return isAuthenticated() && isAccountActive() && (
         getUserRole() == 'ADMIN' ||
         getUserRole() == 'Admin' ||
+        getUserRole() == 'Owner' ||
+        getUserRole() == 'Owner/Admin' ||
         getUserRole() == 'ERP Master' ||
         request.auth.token.email == 'paharpureyecare@gmail.com' ||
         request.auth.token.email == 'admin@paharpureyecare.com' ||
@@ -65,6 +67,8 @@ service cloud.firestore {
       return isAuthenticated() && isAccountActive() && (
         getUserRole() == 'SALES' ||
         getUserRole() == 'Sales' ||
+        getUserRole() == 'Staff' ||
+        getUserRole() == 'STAFF' ||
         getUserRole() == 'Optical Sales'
       );
     }
@@ -96,21 +100,51 @@ service cloud.firestore {
     }
 
     // ===============================================================
+    // INDIVIDUAL STAFF CUSTOM PERMISSIONS ENFORCEMENT
+    // ===============================================================
+    // Evaluates individual overrides configured for the user's UID in /users/{uid}
+    function hasCustomPermission(moduleName, action) {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             'customPermissions' in getUserDoc() &&
+             getUserDoc().customPermissions != null &&
+             moduleName in getUserDoc().customPermissions &&
+             getUserDoc().customPermissions[moduleName] != null &&
+             action in getUserDoc().customPermissions[moduleName] &&
+             getUserDoc().customPermissions[moduleName][action] == true;
+    }
+
+    function isCustomPermissionDenied(moduleName, action) {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             'customPermissions' in getUserDoc() &&
+             getUserDoc().customPermissions != null &&
+             moduleName in getUserDoc().customPermissions &&
+             getUserDoc().customPermissions[moduleName] != null &&
+             action in getUserDoc().customPermissions[moduleName] &&
+             getUserDoc().customPermissions[moduleName][action] == false;
+    }
+
+    // Final effective access evaluator:
+    // 1. Explicit individual override wins (Grant OR Deny)
+    // 2. Otherwise falls back to base role permissions (or Admin full access)
+    function canAccess(moduleName, action, fallbackCondition) {
+      return isAuthenticated() && isAccountActive() && (
+        hasCustomPermission(moduleName, action) ||
+        (!isCustomPermissionDenied(moduleName, action) && (isAdmin() || fallbackCondition))
+      );
+    }
+
+    // ===============================================================
     // 1. USER MANAGEMENT & CREDENTIALS (/users/{userId})
     // ===============================================================
     match /users/{userId} {
       // Active staff can read user directory for collaboration & assignments
       allow read: if isAuthenticated() && isAccountActive();
       
-      // Admin has full control; users can update own profile WITHOUT changing role or status
-      allow create: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
-      allow update: if isAdmin() || (
-        isAuthenticated() && 
-        request.auth.uid == userId &&
-        request.resource.data.role == resource.data.role &&
-        request.resource.data.status == resource.data.status
-      );
-      allow delete: if isAdmin();
+      // Allow authenticated staff to provision, sync, and update staff profiles & lastLogin
+      allow create, update: if isAuthenticated() && isAccountActive();
+      allow delete: if canAccess('User Management', 'delete', false);
     }
 
     // ===============================================================
@@ -118,7 +152,7 @@ service cloud.firestore {
     // ===============================================================
     // Immutable security log: readable only by ADMIN & ACCOUNTANT, append-only, NO EDIT/DELETE
     match /audit_logs/{logId} {
-      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isAccountant());
+      allow read: if canAccess('Audit Logs', 'view', isAccountant());
       allow create: if isAuthenticated() && isAccountActive();
       allow update, delete: if false; // 100% Immutable trail
     }
@@ -127,23 +161,23 @@ service cloud.firestore {
     // 3. CLINIC CONFIGURATION & SECURITY POLICY
     // ===============================================================
     match /clinic_settings/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow write: if isAdmin();
+      allow read: if canAccess('Settings', 'view', true);
+      allow write: if canAccess('Settings', 'edit', false);
     }
 
     match /system_config/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow write: if isAdmin();
+      allow read: if canAccess('Settings', 'view', true);
+      allow write: if canAccess('Settings', 'edit', false);
     }
 
     match /role_permissions/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow write: if isAdmin();
+      allow read: if canAccess('Settings', 'view', true);
+      allow write: if canAccess('Settings', 'edit', false);
     }
 
     match /masters/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow write: if isAdmin();
+      allow read: if canAccess('Settings', 'view', true);
+      allow write: if canAccess('Settings', 'edit', false);
     }
 
     // ===============================================================
@@ -151,163 +185,194 @@ service cloud.firestore {
     // ===============================================================
     // Patients, Customers, Customer Powers & Appointments
     match /patients/{docId} {
-      allow read: if isAuthenticated() && isAccountActive() && !isMarketing();
-      allow create, update: if isAdmin() || isReception() || isOptometrist() || isSales() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Patients', 'view', !isMarketing());
+      allow create: if canAccess('Patients', 'create', (isReception() || isOptometrist() || isSales() || isStaff()));
+      allow update: if canAccess('Patients', 'edit', (isReception() || isOptometrist() || isSales() || isStaff()));
+      allow delete: if canAccess('Patients', 'delete', false);
     }
 
     match /customers/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow create, update: if isAdmin() || isReception() || isSales() || isAccountant() || isMarketing() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Customers', 'view', true);
+      allow create: if canAccess('Customers', 'create', (isReception() || isSales() || isAccountant() || isMarketing() || isStaff()));
+      allow update: if canAccess('Customers', 'edit', (isReception() || isSales() || isAccountant() || isMarketing() || isStaff()));
+      allow delete: if canAccess('Customers', 'delete', false);
     }
 
     match /appointments/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow create, update: if isAdmin() || isReception() || isOptometrist() || isSales() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Appointments', 'view', true);
+      allow create: if canAccess('Appointments', 'create', (isReception() || isOptometrist() || isSales() || isStaff()));
+      allow update: if canAccess('Appointments', 'edit', (isReception() || isOptometrist() || isSales() || isStaff()));
+      allow delete: if canAccess('Appointments', 'delete', false);
     }
 
     match /customer_powers/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow create, update: if isAdmin() || isOptometrist() || isSales() || isReception() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Patients', 'view', true);
+      allow create, update: if canAccess('Patients', 'edit', (isOptometrist() || isSales() || isReception() || isStaff()));
+      allow delete: if canAccess('Patients', 'delete', false);
     }
 
     // Clinical Examinations, Visits & Prescriptions (Optometry clinical domain)
     match /clinical_visits/{docId} {
-      allow read: if isAuthenticated() && isAccountActive() && !isSales() && !isMarketing();
-      allow create, update: if isAdmin() || isOptometrist() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Clinical Entry', 'view', (!isSales() && !isMarketing()));
+      allow create: if canAccess('Clinical Entry', 'create', (isOptometrist() || isStaff()));
+      allow update: if canAccess('Clinical Entry', 'edit', (isOptometrist() || isStaff()));
+      allow delete: if canAccess('Clinical Entry', 'delete', false);
     }
 
     match /prescriptions/{docId} {
-      allow read: if isAuthenticated() && isAccountActive() && !isMarketing();
-      allow create, update: if isAdmin() || isOptometrist() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Prescriptions', 'view', !isMarketing());
+      allow create: if canAccess('Prescriptions', 'create', (isOptometrist() || isStaff()));
+      allow update: if canAccess('Prescriptions', 'edit', (isOptometrist() || isStaff()));
+      allow delete: if canAccess('Prescriptions', 'delete', false);
     }
 
     match /medicines/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow create, update: if isAdmin() || isOptometrist() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Medicines', 'view', true);
+      allow create: if canAccess('Medicines', 'create', (isOptometrist() || isStaff()));
+      allow update: if canAccess('Medicines', 'edit', (isOptometrist() || isStaff()));
+      allow delete: if canAccess('Medicines', 'delete', false);
     }
 
     // ===============================================================
     // 5. SPECTACLE ORDERS, RETAIL POS & BILLING
     // ===============================================================
     match /spectacle_orders/{docId} {
-      allow read: if isAuthenticated() && isAccountActive() && !isOptometrist();
-      allow create, update: if isAdmin() || isSales() || isReception() || isAccountant() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Spectacle Orders', 'view', !isOptometrist());
+      allow create: if canAccess('Spectacle Orders', 'create', (isSales() || isReception() || isAccountant() || isStaff()));
+      allow update: if canAccess('Spectacle Orders', 'edit', (isSales() || isReception() || isAccountant() || isStaff()));
+      allow delete: if canAccess('Spectacle Orders', 'delete', false);
     }
 
     match /retail_sales/{docId} {
-      allow read: if isAuthenticated() && isAccountActive() && !isOptometrist();
-      allow create, update: if isAdmin() || isSales() || isReception() || isAccountant() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Retail POS', 'view', !isOptometrist());
+      allow create: if canAccess('Retail POS', 'create', (isSales() || isReception() || isAccountant() || isStaff()));
+      allow update: if canAccess('Retail POS', 'edit', (isSales() || isReception() || isAccountant() || isStaff()));
+      allow delete: if canAccess('Retail POS', 'delete', false);
     }
 
     match /wholesale_sales/{docId} {
-      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isSales() || isAccountant());
-      allow create, update: if isAdmin() || isSales() || isAccountant() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Wholesale', 'view', (isSales() || isAccountant()));
+      allow create: if canAccess('Wholesale', 'create', (isSales() || isAccountant() || isStaff()));
+      allow update: if canAccess('Wholesale', 'edit', (isSales() || isAccountant() || isStaff()));
+      allow delete: if canAccess('Wholesale', 'delete', false);
     }
 
     match /payments/{docId} {
-      allow read: if isAuthenticated() && isAccountActive() && !isOptometrist();
-      allow create, update: if isAdmin() || isAccountant() || isReception() || isSales() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Payments', 'view', !isOptometrist());
+      allow create: if canAccess('Payments', 'create', (isAccountant() || isReception() || isSales() || isStaff()));
+      allow update: if canAccess('Payments', 'edit', (isAccountant() || isReception() || isSales() || isStaff()));
+      allow delete: if canAccess('Payments', 'delete', false);
     }
 
     match /due_accounts/{docId} {
-      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isAccountant() || isSales() || isReception());
-      allow create, update: if isAdmin() || isAccountant() || isReception() || isSales() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Due Management', 'view', (isAccountant() || isSales() || isReception()));
+      allow create: if canAccess('Due Management', 'create', (isAccountant() || isReception() || isSales() || isStaff()));
+      allow update: if canAccess('Due Management', 'edit', (isAccountant() || isReception() || isSales() || isStaff()));
+      allow delete: if canAccess('Due Management', 'delete', false);
     }
 
     // ===============================================================
     // 6. INVENTORY, PURCHASES & SUPPLIERS
     // ===============================================================
     match /frames/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow create, update: if isAdmin() || isSales() || isAccountant() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Frame Stock', 'view', true);
+      allow create: if canAccess('Frame Stock', 'create', (isSales() || isAccountant() || isStaff()));
+      allow update: if canAccess('Frame Stock', 'edit', (isSales() || isAccountant() || isStaff()));
+      allow delete: if canAccess('Frame Stock', 'delete', false);
     }
 
     match /lenses/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow create, update: if isAdmin() || isSales() || isAccountant() || isOptometrist() || isStaff();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Lens Stock', 'view', true);
+      allow create: if canAccess('Lens Stock', 'create', (isSales() || isAccountant() || isOptometrist() || isStaff()));
+      allow update: if canAccess('Lens Stock', 'edit', (isSales() || isAccountant() || isOptometrist() || isStaff()));
+      allow delete: if canAccess('Lens Stock', 'delete', false);
     }
 
     match /stock_movements/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
+      allow read: if canAccess('Frame Stock', 'view', true);
       allow create: if isStaff();
-      allow update, delete: if isAdmin();
+      allow update, delete: if canAccess('Frame Stock', 'delete', false);
     }
 
     match /suppliers/{docId} {
-      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isAccountant() || isSales());
-      allow create, update: if isAdmin() || isAccountant();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Purchases', 'view', (isAccountant() || isSales()));
+      allow create, update: if canAccess('Purchases', 'edit', isAccountant());
+      allow delete: if canAccess('Purchases', 'delete', false);
     }
 
     match /dealers/{docId} {
-      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isAccountant() || isSales());
-      allow create, update: if isAdmin() || isAccountant() || isSales();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Wholesale', 'view', (isAccountant() || isSales()));
+      allow create, update: if canAccess('Wholesale', 'edit', (isAccountant() || isSales()));
+      allow delete: if canAccess('Wholesale', 'delete', false);
     }
 
     match /purchases/{docId} {
-      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isAccountant() || isSales());
-      allow create, update: if isAdmin() || isAccountant();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Purchases', 'view', (isAccountant() || isSales()));
+      allow create, update: if canAccess('Purchases', 'edit', isAccountant());
+      allow delete: if canAccess('Purchases', 'delete', false);
     }
 
     // ===============================================================
     // 7. CRM, WHATSAPP, MARKETING & LOYALTY
     // ===============================================================
     match /whatsapp_templates/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow create, update: if isAdmin() || isMarketing() || isReception();
-      allow delete: if isAdmin();
+      allow read: if canAccess('WhatsApp CRM', 'view', true);
+      allow create, update: if canAccess('WhatsApp CRM', 'edit', (isMarketing() || isReception()));
+      allow delete: if canAccess('WhatsApp CRM', 'delete', false);
     }
 
     match /marketing_campaigns/{docId} {
-      allow read: if isAuthenticated() && isAccountActive() && (isAdmin() || isMarketing());
-      allow create, update: if isAdmin() || isMarketing();
-      allow delete: if isAdmin();
+      allow read: if canAccess('WhatsApp CRM', 'view', (isAdmin() || isMarketing()));
+      allow create, update: if canAccess('WhatsApp CRM', 'edit', isMarketing());
+      allow delete: if canAccess('WhatsApp CRM', 'delete', false);
     }
 
     match /marketing_offers/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow create, update: if isAdmin() || isMarketing();
-      allow delete: if isAdmin();
+      allow read: if canAccess('WhatsApp CRM', 'view', true);
+      allow create, update: if canAccess('WhatsApp CRM', 'edit', isMarketing());
+      allow delete: if canAccess('WhatsApp CRM', 'delete', false);
     }
 
     match /crm_leads/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow create, update: if isAdmin() || isMarketing() || isReception() || isSales();
-      allow delete: if isAdmin();
+      allow read: if canAccess('WhatsApp CRM', 'view', true);
+      allow create, update: if canAccess('WhatsApp CRM', 'edit', (isMarketing() || isReception() || isSales()));
+      allow delete: if canAccess('WhatsApp CRM', 'delete', false);
     }
 
     match /automation_rules/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow create, update: if isAdmin() || isMarketing();
-      allow delete: if isAdmin();
+      allow read: if canAccess('WhatsApp CRM', 'view', true);
+      allow create, update: if canAccess('WhatsApp CRM', 'edit', isMarketing());
+      allow delete: if canAccess('WhatsApp CRM', 'delete', false);
     }
 
     match /custom_segments/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow create, update: if isAdmin() || isMarketing();
-      allow delete: if isAdmin();
+      allow read: if canAccess('WhatsApp CRM', 'view', true);
+      allow create, update: if canAccess('WhatsApp CRM', 'edit', isMarketing());
+      allow delete: if canAccess('WhatsApp CRM', 'delete', false);
     }
 
     match /loyalty_logs/{docId} {
-      allow read: if isAuthenticated() && isAccountActive();
-      allow create, update: if isStaff() || isAdmin();
-      allow delete: if isAdmin();
+      allow read: if canAccess('Loyalty', 'view', true);
+      allow create, update: if canAccess('Loyalty', 'edit', isStaff());
+      allow delete: if canAccess('Loyalty', 'delete', false);
+    }
+
+    match /stock_adjustments/{docId} {
+      allow read: if canAccess('Inventory', 'view', true);
+      allow create, update: if canAccess('Inventory', 'edit', (isStaff() || isSales() || isAccountant()));
+      allow delete: if canAccess('Inventory', 'delete', false);
+    }
+
+    match /lens_returns/{docId} {
+      allow read: if canAccess('Inventory', 'view', true);
+      allow create, update: if canAccess('Inventory', 'edit', (isStaff() || isSales() || isAccountant()));
+      allow delete: if canAccess('Inventory', 'delete', false);
+    }
+
+    match /lens_purchases/{docId} {
+      allow read: if canAccess('Inventory', 'view', true);
+      allow create, update: if canAccess('Inventory', 'edit', (isStaff() || isSales() || isAccountant()));
+      allow delete: if canAccess('Inventory', 'delete', false);
     }
 
     // ===============================================================

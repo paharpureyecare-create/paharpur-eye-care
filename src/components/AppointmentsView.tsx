@@ -25,7 +25,8 @@ import {
   Layers,
   Archive,
   RotateCcw,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 import { BookAppointmentModal } from './BookAppointmentModal';
 import { EditAppointmentModal } from './EditAppointmentModal';
@@ -44,7 +45,9 @@ export const AppointmentsView: React.FC = () => {
     archiveAppointment,
     restoreAppointment,
     deleteAppointment,
-    showToast
+    showToast,
+    hasPermission,
+    checkAndExecuteAction
   } = useErp();
 
   // Modals state
@@ -92,58 +95,90 @@ export const AppointmentsView: React.FC = () => {
   });
 
   const handleArchiveAppointment = (aptId: string, name: string) => {
-    const reason = prompt(`Reason for archiving appointment #${aptId} (${name}):`, 'Cancelled / Rescheduled');
-    if (reason !== null) {
-      archiveAppointment(aptId, reason || 'Archived by Admin');
-    }
+    checkAndExecuteAction('Appointments', 'edit', () => {
+      const reason = prompt(`Reason for archiving appointment #${aptId} (${name}):`, 'Cancelled / Rescheduled');
+      if (reason !== null) {
+        archiveAppointment(aptId, reason || 'Archived by Admin');
+      }
+    }, 'Archive Appointment');
   };
 
   const handleRestoreAppointment = (aptId: string, name: string) => {
-    if (window.confirm(`Restore appointment #${aptId} (${name}) to Scheduled status?`)) {
-      restoreAppointment(aptId);
-    }
+    checkAndExecuteAction('Appointments', 'edit', () => {
+      if (window.confirm(`Restore appointment #${aptId} (${name}) to Scheduled status?`)) {
+        restoreAppointment(aptId);
+      }
+    }, 'Restore Appointment');
   };
 
   const handleDeleteAppointment = (aptId: string, name: string) => {
-    const confirmText = prompt(
-      `⚠️ ADMIN PERMANENT DELETE\nThis will permanently delete appointment #${aptId} (${name}).\nType "DELETE" to confirm:`
-    );
-    if (confirmText === 'DELETE') {
-      deleteAppointment(aptId);
-    } else if (confirmText !== null) {
-      showToast('Deletion cancelled: text did not match DELETE', 'warning');
-    }
+    checkAndExecuteAction('Appointments', 'delete', () => {
+      const confirmText = prompt(
+        `⚠️ ADMIN PERMANENT DELETE\nThis will permanently delete appointment #${aptId} (${name}).\nType "DELETE" to confirm:`
+      );
+      if (confirmText === 'DELETE') {
+        deleteAppointment(aptId);
+      } else if (confirmText !== null) {
+        showToast('Deletion cancelled: text did not match DELETE', 'warning');
+      }
+    }, 'Delete Appointment');
+  };
+
+  const handleExportAppointments = () => {
+    checkAndExecuteAction('Appointments', 'export', () => {
+      const headers = ['ID,PatientName,MRD,Mobile,Date,Time,Doctor,Status,TotalFee,Paid,Due'];
+      const rows = filtered.map(a => `"${a.id}","${a.patientName}","${a.mrd || ''}","${a.mobile || ''}","${a.date}","${a.time}","${a.doctor}","${a.status}",${a.totalFee || a.fee || 0},${a.paid || a.paidAmount || 0},${(a.totalFee || a.fee || 0) - (a.paid || a.paidAmount || 0)}`);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `appointments_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`Exported ${filtered.length} appointments successfully`, 'success');
+    }, 'Export Appointments');
+  };
+
+  const handlePrintRegistry = () => {
+    checkAndExecuteAction('Appointments', 'print', () => {
+      window.print();
+    }, 'Print Appointment Registry');
   };
 
   const handleWhatsAppReminder = (apt: Appointment) => {
-    const cleanMobile = (apt.mobile || '').replace(/[^0-9]/g, '');
-    const fullNumber = cleanMobile.length === 10 ? `91${cleanMobile}` : cleanMobile;
-    const msg = encodeURIComponent(
-      `নমস্কার ${apt.patientName},\n` +
-      `Paharpur Eye Care এ আপনার চক্ষু পরীক্ষার অ্যাপয়েন্টমেন্ট শিডিউল করা হয়েছে।\n` +
-      `📅 তারিখ: ${apt.date}\n` +
-      `⏰ সময়: ${apt.time}\n` +
-      `👨‍⚕️ কনসালট্যান্ট: ${apt.doctor}\n` +
-      (apt.optometrist ? `🔬 অপ্টোমেট্রিস্ট: ${apt.optometrist}\n` : '') +
-      `💰 মোট ফি: ₹${apt.totalFee || apt.fee || 150} (জমা: ₹${apt.paid || apt.paidAmount || 0})\n` +
-      `🏥 স্থান: পাহাডপুর আই কেয়ার, মেইন রোড।\n` +
-      `📞 হেল্পলাইন: ${settings.mobile || '+91 98301 23456'}`
-    );
-    window.open(`https://wa.me/${fullNumber}?text=${msg}`, '_blank');
+    checkAndExecuteAction('WhatsApp CRM', 'send', () => {
+      const cleanMobile = (apt.mobile || '').replace(/[^0-9]/g, '');
+      const fullNumber = cleanMobile.length === 10 ? `91${cleanMobile}` : cleanMobile;
+      const msg = encodeURIComponent(
+        `নমস্কার ${apt.patientName},\n` +
+        `Paharpur Eye Care এ আপনার চক্ষু পরীক্ষার অ্যাপয়েন্টমেন্ট শিডিউল করা হয়েছে।\n` +
+        `📅 তারিখ: ${apt.date}\n` +
+        `⏰ সময়: ${apt.time}\n` +
+        `👨‍⚕️ কনসালট্যান্ট: ${apt.doctor}\n` +
+        (apt.optometrist ? `🔬 অপ্টোমেট্রিস্ট: ${apt.optometrist}\n` : '') +
+        `💰 মোট ফি: ₹${apt.totalFee || apt.fee || 150} (জমা: ₹${apt.paid || apt.paidAmount || 0})\n` +
+        `🏥 স্থান: পাহাডপুর আই কেয়ার, মেইন রোড।\n` +
+        `📞 হেল্পলাইন: ${settings.mobile || '+91 98301 23456'}`
+      );
+      window.open(`https://wa.me/${fullNumber}?text=${msg}`, '_blank');
+    }, 'Send WhatsApp Reminder');
   };
 
   const handlePrintSlip = (apt: Appointment) => {
-    const pObj = patients.find(p => p.mrd === apt.mrd);
-    setPrintModalData({
-      type: 'appointment',
-      data: {
-        ...apt,
-        age: apt.age || pObj?.age || 35,
-        gender: apt.gender || pObj?.gender || 'Male',
-        village: apt.village || pObj?.village || 'Paharpur',
-        address: apt.address || pObj?.address || 'South 24 Parganas'
-      }
-    });
+    checkAndExecuteAction('Appointments', 'print', () => {
+      const pObj = patients.find(p => p.mrd === apt.mrd);
+      setPrintModalData({
+        type: 'appointment',
+        data: {
+          ...apt,
+          age: apt.age || pObj?.age || 35,
+          gender: apt.gender || pObj?.gender || 'Male',
+          village: apt.village || pObj?.village || 'Paharpur',
+          address: apt.address || pObj?.address || 'South 24 Parganas'
+        }
+      });
+    }, 'Print Appointment Slip');
   };
 
   const statusOptions: AppointmentStatus[] = [
@@ -179,14 +214,40 @@ export const AppointmentsView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          id="btn-book-appointment-view"
-          onClick={() => setIsBookModalOpen(true)}
-          className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-all hover:scale-105 self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          + Book New Appointment (বুক অ্যাপয়েন্টমেন্ট)
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {hasPermission('Appointments', 'export') && (
+            <button
+              id="btn-export-appointments"
+              onClick={handleExportAppointments}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors border border-slate-200"
+              title="Export Appointments CSV"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+            </button>
+          )}
+
+          {hasPermission('Appointments', 'print') && (
+            <button
+              id="btn-print-appointments-list"
+              onClick={handlePrintRegistry}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors border border-slate-200"
+              title="Print Appointment List"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Print
+            </button>
+          )}
+
+          <button
+            id="btn-book-appointment-view"
+            onClick={() => checkAndExecuteAction('Appointments', 'create', () => setIsBookModalOpen(true), 'Book Appointment')}
+            className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-all hover:scale-105"
+          >
+            <Plus className="w-4 h-4" />
+            + Book Appointment (বুক)
+          </button>
+        </div>
       </div>
 
       {/* Toolbar & Filters */}
@@ -391,7 +452,13 @@ export const AppointmentsView: React.FC = () => {
                       <td className="py-3.5 px-4">
                         <select
                           value={apt.status}
-                          onChange={e => updateAppointmentStatus(apt.id, e.target.value as AppointmentStatus)}
+                          disabled={!hasPermission('Appointments', 'edit')}
+                          onChange={e => {
+                            const newStatus = e.target.value as AppointmentStatus;
+                            checkAndExecuteAction('Appointments', 'edit', () => {
+                              updateAppointmentStatus(apt.id, newStatus);
+                            }, 'Change Appointment Status');
+                          }}
                           className={`text-xs font-bold rounded-lg px-2.5 py-1 border cursor-pointer ${
                             apt.status === 'Completed'
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
@@ -427,20 +494,22 @@ export const AppointmentsView: React.FC = () => {
                           </button>
 
                           {/* 2. Edit Appointment */}
-                          <button
-                            id={`edit-apt-btn-${apt.id}`}
-                            onClick={() => setEditingAppointment(apt)}
-                            className="p-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-lg text-xs font-bold transition-colors border border-slate-200"
-                            title="Edit & Update Appointment In-Place"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
+                          {hasPermission('Appointments', 'edit') && (
+                            <button
+                              id={`edit-apt-btn-${apt.id}`}
+                              onClick={() => checkAndExecuteAction('Appointments', 'edit', () => setEditingAppointment(apt), 'Edit Appointment')}
+                              className="p-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-lg text-xs font-bold transition-colors border border-slate-200"
+                              title="Edit & Update Appointment In-Place"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
 
                           {/* 3. Collect Payment (if due > 0) */}
-                          {due > 0 && (
+                          {due > 0 && hasPermission('Billing', 'create') && (
                             <button
                               id={`pay-apt-btn-${apt.id}`}
-                              onClick={() => setCollectingPaymentAppointment(apt)}
+                              onClick={() => checkAndExecuteAction('Billing', 'create', () => setCollectingPaymentAppointment(apt), 'Collect Payment')}
                               className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg text-xs font-bold transition-colors border border-amber-200"
                               title={`Collect ₹${due} Fee Due`}
                             >
@@ -449,69 +518,79 @@ export const AppointmentsView: React.FC = () => {
                           )}
 
                           {/* 4. Print Token Slip */}
-                          <button
-                            id={`print-apt-btn-${apt.id}`}
-                            onClick={() => handlePrintSlip(apt)}
-                            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors border border-slate-200"
-                            title="Print Appointment Slip / Token"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* 5. WhatsApp Reminder */}
-                          <button
-                            id={`wa-apt-btn-${apt.id}`}
-                            onClick={() => handleWhatsAppReminder(apt)}
-                            className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors border border-emerald-200"
-                            title="Send WhatsApp Confirmation / Reminder"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* 6. 1-Click START VISIT */}
-                          <button
-                            id={`start-visit-btn-${apt.id}`}
-                            onClick={() => startVisitFromAppointment(apt.id)}
-                            className={`px-2.5 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all shadow-2xs ${
-                              apt.status === 'Completed'
-                                ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                : 'bg-teal-600 hover:bg-teal-700 text-white hover:scale-105'
-                            }`}
-                          >
-                            <Stethoscope className="w-3.5 h-3.5" />
-                            {apt.status === 'Completed' ? 'Re-open' : '⚡ Start'}
-                          </button>
-
-                          {/* 7. Archive / Restore */}
-                          {apt.status === 'Archived' ? (
+                          {hasPermission('Appointments', 'print') && (
                             <button
-                              id={`restore-apt-btn-${apt.id}`}
-                              onClick={() => handleRestoreAppointment(apt.id, apt.patientName)}
-                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors border border-emerald-200"
-                              title="Restore Appointment"
+                              id={`print-apt-btn-${apt.id}`}
+                              onClick={() => handlePrintSlip(apt)}
+                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors border border-slate-200"
+                              title="Print Appointment Slip / Token"
                             >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                            </button>
-                          ) : (
-                            <button
-                              id={`archive-apt-btn-${apt.id}`}
-                              onClick={() => handleArchiveAppointment(apt.id, apt.patientName)}
-                              className="p-1.5 bg-slate-100 hover:bg-amber-50 text-slate-600 hover:text-amber-700 rounded-lg text-xs font-bold transition-colors border border-slate-200"
-                              title="Archive Appointment"
-                            >
-                              <Archive className="w-3.5 h-3.5" />
+                              <Printer className="w-3.5 h-3.5" />
                             </button>
                           )}
 
+                          {/* 5. WhatsApp Reminder */}
+                          {hasPermission('WhatsApp CRM', 'send') && (
+                            <button
+                              id={`wa-apt-btn-${apt.id}`}
+                              onClick={() => handleWhatsAppReminder(apt)}
+                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors border border-emerald-200"
+                              title="Send WhatsApp Confirmation / Reminder"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {/* 6. 1-Click START VISIT */}
+                          {hasPermission('Clinical Entry', 'create') && (
+                            <button
+                              id={`start-visit-btn-${apt.id}`}
+                              onClick={() => checkAndExecuteAction('Clinical Entry', 'create', () => startVisitFromAppointment(apt.id), 'Start Clinical Visit')}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all shadow-2xs ${
+                                apt.status === 'Completed'
+                                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                  : 'bg-teal-600 hover:bg-teal-700 text-white hover:scale-105'
+                              }`}
+                            >
+                              <Stethoscope className="w-3.5 h-3.5" />
+                              {apt.status === 'Completed' ? 'Re-open' : '⚡ Start'}
+                            </button>
+                          )}
+
+                          {/* 7. Archive / Restore */}
+                          {hasPermission('Appointments', 'edit') && (
+                            apt.status === 'Archived' ? (
+                              <button
+                                id={`restore-apt-btn-${apt.id}`}
+                                onClick={() => handleRestoreAppointment(apt.id, apt.patientName)}
+                                className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors border border-emerald-200"
+                                title="Restore Appointment"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <button
+                                id={`archive-apt-btn-${apt.id}`}
+                                onClick={() => handleArchiveAppointment(apt.id, apt.patientName)}
+                                className="p-1.5 bg-slate-100 hover:bg-amber-50 text-slate-600 hover:text-amber-700 rounded-lg text-xs font-bold transition-colors border border-slate-200"
+                                title="Archive Appointment"
+                              >
+                                <Archive className="w-3.5 h-3.5" />
+                              </button>
+                            )
+                          )}
+
                           {/* 8. Permanent Delete */}
-                          <button
-                            id={`delete-apt-btn-${apt.id}`}
-                            onClick={() => handleDeleteAppointment(apt.id, apt.patientName)}
-                            className="p-1.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 rounded-lg text-xs font-bold transition-colors border border-slate-200"
-                            title="Permanent Delete (Admin Only)"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {hasPermission('Appointments', 'delete') && (
+                            <button
+                              id={`delete-apt-btn-${apt.id}`}
+                              onClick={() => handleDeleteAppointment(apt.id, apt.patientName)}
+                              className="p-1.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 rounded-lg text-xs font-bold transition-colors border border-slate-200"
+                              title="Permanent Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
 
                         </div>
                       </td>

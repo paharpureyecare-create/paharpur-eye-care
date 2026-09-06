@@ -186,6 +186,16 @@ export const sanitizeForFirestore = (obj: any): any => {
 };
 
 /**
+ * Sanitizes an ID string so that it can be safely used as a Firestore document ID (no forward slashes, spaces, or hashes)
+ */
+export const sanitizeDocId = (id: string | number | undefined | null): string => {
+  if (id === undefined || id === null || String(id).trim() === '') {
+    return `DOC_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+  }
+  return String(id).trim().replace(/[\/\s#\?]/g, '_');
+};
+
+/**
  * Saves a single document to Firestore with updatedAt timestamp
  */
 export const saveCloudDocument = async <T extends { id?: string; [key: string]: any }>(
@@ -195,10 +205,11 @@ export const saveCloudDocument = async <T extends { id?: string; [key: string]: 
   userEmail = 'system'
 ): Promise<boolean> => {
   try {
-    const docRef = doc(db, collectionName, docId);
+    const safeId = sanitizeDocId(docId);
+    const docRef = doc(db, collectionName, safeId);
     const payload = sanitizeForFirestore({
       ...data,
-      id: docId,
+      id: (data as any).id || safeId,
       updatedAt: new Date().toISOString(),
       updatedBy: userEmail
     });
@@ -215,7 +226,8 @@ export const saveCloudDocument = async <T extends { id?: string; [key: string]: 
  */
 export const loadCloudDocument = async <T>(collectionName: string, docId: string): Promise<T | null> => {
   try {
-    const docRef = doc(db, collectionName, docId);
+    const safeId = sanitizeDocId(docId);
+    const docRef = doc(db, collectionName, safeId);
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       return snap.data() as T;
@@ -236,7 +248,8 @@ export const loadCloudCollection = async <T>(collectionName: string): Promise<T[
     const snap = await getDocs(colRef);
     const items: T[] = [];
     snap.forEach(d => {
-      items.push(d.data() as T);
+      const data = d.data();
+      items.push({ ...data, id: (data as any).id || d.id } as T);
     });
     return items;
   } catch (err: any) {
@@ -259,12 +272,41 @@ export const subscribeCloudCollection = <T>(
     snapshot => {
       const items: T[] = [];
       snapshot.forEach(d => {
-        items.push(d.data() as T);
+        const data = d.data();
+        items.push({ ...data, id: (data as any).id || d.id } as T);
       });
       onData(items);
     },
     error => {
-      console.warn(`Firestore snapshot error on ${collectionName}:`, error);
+      console.warn(`Firestore snapshot notice on ${collectionName}:`, error?.message || error);
+      if (onError) onError(error);
+    }
+  );
+};
+
+/**
+ * Subscribes in real-time to a single Firestore document
+ */
+export const subscribeCloudDocument = <T>(
+  collectionName: string,
+  docId: string,
+  onData: (data: T | null) => void,
+  onError?: (err: Error) => void
+): Unsubscribe => {
+  const safeId = sanitizeDocId(docId);
+  const docRef = doc(db, collectionName, safeId);
+  return onSnapshot(
+    docRef,
+    snapshot => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        onData({ ...data, id: (data as any).id || snapshot.id } as T);
+      } else {
+        onData(null);
+      }
+    },
+    error => {
+      console.warn(`Firestore document snapshot notice on [${collectionName}/${safeId}]:`, error?.message || error);
       if (onError) onError(error);
     }
   );
@@ -275,7 +317,8 @@ export const subscribeCloudCollection = <T>(
  */
 export const deleteCloudDocument = async (collectionName: string, docId: string): Promise<boolean> => {
   try {
-    const docRef = doc(db, collectionName, docId);
+    const safeId = sanitizeDocId(docId);
+    const docRef = doc(db, collectionName, safeId);
     await deleteDoc(docRef);
     return true;
   } catch (err: any) {
@@ -376,6 +419,7 @@ export const migrateCollectionChunked = async <T extends { [key: string]: any }>
 
 export const loadERPUsers = async (): Promise<ERPUser[]> => {
   try {
+    await ensureFirebaseAuth();
     const colRef = collection(db, 'users');
     const snap = await getDocs(colRef);
     const users: ERPUser[] = [];
@@ -391,6 +435,11 @@ export const loadERPUsers = async (): Promise<ERPUser[]> => {
 
 export const saveERPUser = async (user: ERPUser): Promise<boolean> => {
   try {
+    const authUser = await ensureFirebaseAuth();
+    if (!authUser && !auth.currentUser) {
+      console.warn('saveERPUser: auth not yet ready, deferring cloud write');
+      return false;
+    }
     const docRef = doc(db, 'users', user.uid);
     const payload = sanitizeForFirestore({
       ...user,
@@ -398,30 +447,32 @@ export const saveERPUser = async (user: ERPUser): Promise<boolean> => {
     });
     await setDoc(docRef, payload, { merge: true });
     return true;
-  } catch (err) {
-    console.error('Error saving ERP user:', err);
+  } catch (err: any) {
+    console.error('Error saving ERP user:', err?.message || err);
     return false;
   }
 };
 
 export const deleteERPUser = async (uid: string): Promise<boolean> => {
   try {
+    await ensureFirebaseAuth();
     const docRef = doc(db, 'users', uid);
     await deleteDoc(docRef);
     return true;
-  } catch (err) {
-    console.error('Error deleting ERP user:', err);
+  } catch (err: any) {
+    console.error('Error deleting ERP user:', err?.message || err);
     return false;
   }
 };
 
 export const toggleERPUserStatus = async (uid: string, status: 'Active' | 'Disabled'): Promise<boolean> => {
   try {
+    await ensureFirebaseAuth();
     const docRef = doc(db, 'users', uid);
     await setDoc(docRef, { status, updatedAt: new Date().toISOString() }, { merge: true });
     return true;
-  } catch (err) {
-    console.error('Error updating ERP user status:', err);
+  } catch (err: any) {
+    console.error('Error updating ERP user status:', err?.message || err);
     return false;
   }
 };

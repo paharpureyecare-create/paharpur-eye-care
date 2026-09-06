@@ -36,13 +36,40 @@ import { AiCeoReportModal } from './components/AiCeoReportModal';
 import { AuthModal } from './components/AuthModal';
 import { PermissionDeniedCard } from './components/PermissionDeniedCard';
 import { getModuleForTab } from './services/permissionService';
+import { LoginPage } from './components/LoginPage';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
-  const { activeTab, toast, selectedCustomerFor360, setSelectedCustomerFor360, quickModal, setQuickModal, hasPermission } = useErp();
+  const {
+    activeTab,
+    setActiveTab,
+    toast,
+    selectedCustomerFor360,
+    setSelectedCustomerFor360,
+    quickModal,
+    setQuickModal,
+    hasPermission
+  } = useErp();
 
   const currentModule = getModuleForTab(activeTab);
   const isViewPermitted = hasPermission(currentModule, 'view');
+
+  // Automatic redirect if current tab is not permitted for the user's role
+  React.useEffect(() => {
+    if (!isViewPermitted) {
+      if (hasPermission('Dashboard', 'view')) {
+        setActiveTab('dashboard');
+      } else if (hasPermission('Patients', 'view')) {
+        setActiveTab('patients');
+      } else if (hasPermission('Clinical Entry', 'view')) {
+        setActiveTab('entry-center');
+      } else if (hasPermission('Retail POS', 'view')) {
+        setActiveTab('retail-sales');
+      } else if (hasPermission('Appointments', 'view')) {
+        setActiveTab('appointments');
+      }
+    }
+  }, [isViewPermitted, activeTab, hasPermission, setActiveTab]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans antialiased text-slate-900 selection:bg-teal-500 selection:text-white">
@@ -153,10 +180,36 @@ const MainLayout: React.FC = () => {
   );
 };
 
+const AppRoot: React.FC = () => {
+  const { authLoading, currentUser } = useErp();
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen w-screen bg-slate-950 flex flex-col items-center justify-center text-slate-100 font-sans">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-14 h-14 rounded-3xl bg-gradient-to-tr from-teal-700 to-teal-500 flex items-center justify-center text-white shadow-2xl shadow-teal-500/30 animate-pulse border border-teal-400/40">
+            <span className="text-xl font-black tracking-tighter">PEC</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-4 h-4 border-2 border-teal-400 border-t-transparent rounded-full animate-spin"></span>
+            <span className="text-xs font-semibold text-slate-300">Verifying Secure Clinic Session...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <LoginPage />;
+  }
+
+  return <MainLayout />;
+};
+
 export default function App() {
   return (
     <ErpProvider>
-      <MainLayout />
+      <AppRoot />
     </ErpProvider>
   );
 }

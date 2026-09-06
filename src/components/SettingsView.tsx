@@ -999,8 +999,8 @@ export const SettingsView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {auditLogs.slice(0, 50).map(log => (
-                    <tr key={log.id} className="hover:bg-slate-50">
+                  {auditLogs.slice(0, 50).map((log, index) => (
+                    <tr key={`${log.id || 'log'}-${index}`} className="hover:bg-slate-50">
                       <td className="py-2 px-3 text-slate-500 font-mono text-[11px] whitespace-nowrap">
                         {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                       </td>

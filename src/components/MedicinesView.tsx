@@ -26,11 +26,13 @@ import {
   RotateCcw,
   SlidersHorizontal,
   Package,
-  Layers
+  Layers,
+  Download,
+  Printer
 } from 'lucide-react';
 
 export const MedicinesView: React.FC = () => {
-  const { medicines, saveMedicine, deleteMedicine, showToast } = useErp();
+  const { medicines, saveMedicine, deleteMedicine, showToast, hasPermission, checkAndExecuteAction } = useErp();
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -88,71 +90,100 @@ export const MedicinesView: React.FC = () => {
     });
   }, [medicines, search, selectedCategory, selectedForm, selectedCompany, selectedStatus]);
 
+  // Export / Print Handlers
+  const handleExportMedicines = () => {
+    checkAndExecuteAction('Medicines', 'export', () => {
+      const headers = ['ID,Name,GenericName,Category,Strength,Form,Company,PackSize,Stock,MRP,SellingPrice,Status'];
+      const rows = filtered.map(m => `"${m.id}","${m.name}","${m.genericName || ''}","${m.category || ''}","${m.strength || ''}","${m.form || ''}","${m.company || ''}","${m.bottleSize || m.packSize || ''}",${m.stockQuantity ?? m.currentStock ?? 0},${m.mrp ?? 0},${m.sellingPrice ?? 0},"${m.active !== false ? 'Active' : 'Inactive'}"`);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `medicines_master_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`Exported ${filtered.length} medicine formulations`, 'success');
+    }, 'Export Medicines');
+  };
+
+  const handlePrintMedicines = () => {
+    checkAndExecuteAction('Medicines', 'print', () => {
+      window.print();
+    }, 'Print Medicines Formulary');
+  };
+
   // Toggle Favorite
   const handleToggleFavorite = (med: MedicineMaster, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated: MedicineMaster = {
-      ...med,
-      isFavorite: !(med.isFavorite || med.quickAccess),
-      quickAccess: !(med.isFavorite || med.quickAccess)
-    };
-    saveMedicine(updated);
-    showToast(
-      updated.isFavorite
-        ? `⭐ ${med.name} added to Clinical Quick-Access!`
-        : `Removed ${med.name} from Quick-Access.`,
-      'info'
-    );
+    checkAndExecuteAction('Medicines', 'edit', () => {
+      const updated: MedicineMaster = {
+        ...med,
+        isFavorite: !(med.isFavorite || med.quickAccess),
+        quickAccess: !(med.isFavorite || med.quickAccess)
+      };
+      saveMedicine(updated);
+      showToast(
+        updated.isFavorite
+          ? `⭐ ${med.name} added to Clinical Quick-Access!`
+          : `Removed ${med.name} from Quick-Access.`,
+        'info'
+      );
+    }, 'Update Medicine Quick-Access');
   };
 
   // Toggle Active Status
   const handleToggleActive = (med: MedicineMaster, e: React.MouseEvent) => {
     e.stopPropagation();
-    const nextActive = med.active === false;
-    const updated: MedicineMaster = {
-      ...med,
-      active: nextActive
-    };
-    saveMedicine(updated);
-    showToast(
-      nextActive
-        ? `✅ ${med.name} activated for clinical prescriptions.`
-        : `⏸️ ${med.name} set to inactive.`,
-      nextActive ? 'success' : 'warning'
-    );
+    checkAndExecuteAction('Medicines', 'edit', () => {
+      const nextActive = med.active === false;
+      const updated: MedicineMaster = {
+        ...med,
+        active: nextActive
+      };
+      saveMedicine(updated);
+      showToast(
+        nextActive
+          ? `✅ ${med.name} activated for clinical prescriptions.`
+          : `⏸️ ${med.name} set to inactive.`,
+        nextActive ? 'success' : 'warning'
+      );
+    }, 'Toggle Medicine Status');
   };
 
   // Open New Medicine Modal
   const handleAddNew = () => {
-    setEditingMed({
-      id: `MED-${Date.now().toString().slice(-6)}`,
-      name: '',
-      genericName: '',
-      category: 'Lubricant / Artificial Tear',
-      strength: '0.5%',
-      form: 'Eye Drop',
-      company: '',
-      bottleSize: '10 ml',
-      packSize: '10 ml',
-      stockQuantity: 20,
-      currentStock: 20,
-      purchasePrice: 0,
-      purchaseRate: 0,
-      sellingPrice: 0,
-      mrp: 0,
-      reorderLevel: 5,
-      active: true,
-      isFavorite: false,
-      quickAccess: false,
-      defaultEye: 'OU',
-      defaultDose: '1 drop',
-      frequency: '3 times daily',
-      defaultDuration: '14 days',
-      foodInstruction: 'As directed',
-      defaultInstruction: 'Instill into eye(s) with clean hands.',
-      route: 'Ophthalmic (Both Eyes)',
-      notes: ''
-    });
+    checkAndExecuteAction('Medicines', 'create', () => {
+      setEditingMed({
+        id: `MED-${Date.now().toString().slice(-6)}`,
+        name: '',
+        genericName: '',
+        category: 'Lubricant / Artificial Tear',
+        strength: '0.5%',
+        form: 'Eye Drop',
+        company: '',
+        bottleSize: '10 ml',
+        packSize: '10 ml',
+        stockQuantity: 20,
+        currentStock: 20,
+        purchasePrice: 0,
+        purchaseRate: 0,
+        sellingPrice: 0,
+        mrp: 0,
+        reorderLevel: 5,
+        active: true,
+        isFavorite: false,
+        quickAccess: false,
+        defaultEye: 'OU',
+        defaultDose: '1 drop',
+        frequency: '3 times daily',
+        defaultDuration: '14 days',
+        foodInstruction: 'As directed',
+        defaultInstruction: 'Instill into eye(s) with clean hands.',
+        route: 'Ophthalmic (Both Eyes)',
+        notes: ''
+      });
+    }, 'Add New Medicine');
   };
 
   // Save Modal Form
@@ -165,32 +196,37 @@ export const MedicinesView: React.FC = () => {
       return;
     }
 
-    const payload: MedicineMaster = {
-      ...editingMed,
-      name: editingMed.name.trim(),
-      genericName: (editingMed.genericName || '').trim(),
-      company: (editingMed.company || '').trim(),
-      currentStock: Number(editingMed.stockQuantity ?? editingMed.currentStock ?? 0),
-      stockQuantity: Number(editingMed.stockQuantity ?? editingMed.currentStock ?? 0),
-      purchaseRate: Number(editingMed.purchasePrice ?? editingMed.purchaseRate ?? 0),
-      purchasePrice: Number(editingMed.purchasePrice ?? editingMed.purchaseRate ?? 0),
-      mrp: Number(editingMed.sellingPrice ?? editingMed.mrp ?? 0),
-      sellingPrice: Number(editingMed.sellingPrice ?? editingMed.mrp ?? 0),
-      reorderLevel: Number(editingMed.reorderLevel ?? 5),
-      active: editingMed.active !== false
-    };
+    const isNew = !medicines.some(m => m.id === editingMed.id);
+    checkAndExecuteAction('Medicines', isNew ? 'create' : 'edit', () => {
+      const payload: MedicineMaster = {
+        ...editingMed,
+        name: editingMed.name.trim(),
+        genericName: (editingMed.genericName || '').trim(),
+        company: (editingMed.company || '').trim(),
+        currentStock: Number(editingMed.stockQuantity ?? editingMed.currentStock ?? 0),
+        stockQuantity: Number(editingMed.stockQuantity ?? editingMed.currentStock ?? 0),
+        purchaseRate: Number(editingMed.purchasePrice ?? editingMed.purchaseRate ?? 0),
+        purchasePrice: Number(editingMed.purchasePrice ?? editingMed.purchaseRate ?? 0),
+        mrp: Number(editingMed.sellingPrice ?? editingMed.mrp ?? 0),
+        sellingPrice: Number(editingMed.sellingPrice ?? editingMed.mrp ?? 0),
+        reorderLevel: Number(editingMed.reorderLevel ?? 5),
+        active: editingMed.active !== false
+      };
 
-    saveMedicine(payload);
-    setEditingMed(null);
-    showToast(`Medicine "${payload.name}" saved to master!`, 'success');
+      saveMedicine(payload);
+      setEditingMed(null);
+      showToast(`Medicine "${payload.name}" saved to master!`, 'success');
+    }, isNew ? 'Create Medicine' : 'Edit Medicine');
   };
 
   // Confirm Delete
   const handleDeleteConfirm = () => {
     if (!deleteConfirmMed) return;
-    deleteMedicine(deleteConfirmMed.id);
-    setDeleteConfirmMed(null);
-    showToast(`Medicine removed from master. Past patient prescriptions remain intact.`, 'info');
+    checkAndExecuteAction('Medicines', 'delete', () => {
+      deleteMedicine(deleteConfirmMed.id);
+      setDeleteConfirmMed(null);
+      showToast(`Medicine removed from master. Past patient prescriptions remain intact.`, 'info');
+    }, 'Delete Medicine');
   };
 
   return (
@@ -219,14 +255,40 @@ export const MedicinesView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              id="btn-add-medicine-master"
-              onClick={handleAddNew}
-              className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-all hover:scale-102"
-            >
-              <Plus className="w-4 h-4" />
-              + Add New Medicine (নতুন ওষুধ যোগ)
-            </button>
+            {hasPermission('Medicines', 'export') && (
+              <button
+                id="btn-export-medicines"
+                onClick={handleExportMedicines}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3 py-2.5 rounded-xl border border-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Export Medicines CSV"
+              >
+                <Download className="w-4 h-4 text-slate-600" />
+                Export
+              </button>
+            )}
+
+            {hasPermission('Medicines', 'print') && (
+              <button
+                id="btn-print-medicines"
+                onClick={handlePrintMedicines}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3 py-2.5 rounded-xl border border-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Print Medicines List"
+              >
+                <Printer className="w-4 h-4 text-slate-600" />
+                Print
+              </button>
+            )}
+
+            {hasPermission('Medicines', 'create') && (
+              <button
+                id="btn-add-medicine-master"
+                onClick={handleAddNew}
+                className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-all hover:scale-102 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                + Add New Medicine (নতুন ওষুধ যোগ)
+              </button>
+            )}
           </div>
         </div>
 
@@ -536,22 +598,30 @@ export const MedicinesView: React.FC = () => {
                       {/* Row Actions */}
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button
-                            id={`btn-edit-med-${med.id}`}
-                            onClick={() => setEditingMed({ ...med })}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-200 transition-all"
-                            title="Edit Medicine Formulation"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            id={`btn-del-med-${med.id}`}
-                            onClick={() => setDeleteConfirmMed(med)}
-                            className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-all"
-                            title="Delete Medicine from Formulary"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {hasPermission('Medicines', 'edit') && (
+                            <button
+                              id={`btn-edit-med-${med.id}`}
+                              onClick={() => {
+                                checkAndExecuteAction('Medicines', 'edit', () => setEditingMed({ ...med }), 'Edit Medicine');
+                              }}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-200 transition-all cursor-pointer"
+                              title="Edit Medicine Formulation"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {hasPermission('Medicines', 'delete') && (
+                            <button
+                              id={`btn-del-med-${med.id}`}
+                              onClick={() => {
+                                checkAndExecuteAction('Medicines', 'delete', () => setDeleteConfirmMed(med), 'Delete Medicine');
+                              }}
+                              className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-all cursor-pointer"
+                              title="Delete Medicine from Formulary"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -413,7 +413,8 @@ export const SecurityTestDashboard: React.FC = () => {
                 : `Role [${simulatedRole}] is strictly DENIED [${simulatedAction.toUpperCase()}] privilege on [${simulatedModule}].`}
             </p>
 
-            <p className="text-xs text-slate-600 mt-1 font-medium">{simReason}</p>
+            <p className="text-xs text-slate-600 mt-1 font-medium">{simReason.reason}</p>
+            <p className="text-2xs text-slate-500 font-mono mt-0.5">Firestore Security Target: {simReason.rulePath}</p>
 
             <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between">
               <p className="text-2xs text-slate-500">

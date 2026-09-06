@@ -21,7 +21,8 @@ import {
   X,
   Package,
   Layers,
-  Edit2
+  Edit2,
+  Download
 } from 'lucide-react';
 
 export const WholesaleDealersView: React.FC = () => {
@@ -34,7 +35,9 @@ export const WholesaleDealersView: React.FC = () => {
     updateWholesaleSale,
     setPrintModalData,
     showToast,
-    role
+    role,
+    hasPermission,
+    checkAndExecuteAction
   } = useErp();
 
   const [activeTab, setActiveTab] = useState<'dealers' | 'invoices' | 'profit-matrix'>('dealers');
@@ -130,6 +133,39 @@ export const WholesaleDealersView: React.FC = () => {
     );
   }, [wholesaleSales, searchQuery]);
 
+  // Export Dealers & Invoices Handlers
+  const handleExportDealers = () => {
+    checkAndExecuteAction('WholesaleDealers', 'export', () => {
+      const headers = ['DealerID,ShopName,OwnerName,Mobile,Village,District,GSTIN,CreditLimit,PaymentTerms,TotalPurchase,CurrentDue,Status'];
+      const rows = filteredDealers.map(d => `"${d.dealerId}","${d.shopName}","${d.ownerName}","${d.mobile}","${d.village || ''}","${d.district}","${d.gstin || ''}",${d.creditLimit},"${d.paymentTerms}",${d.totalPurchase || 0},${d.currentDue || 0},"${d.status}"`);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `dealers_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`Exported ${filteredDealers.length} wholesale dealers`, 'success');
+    }, 'Export Dealers');
+  };
+
+  const handleExportInvoices = () => {
+    checkAndExecuteAction('Sales', 'export', () => {
+      const headers = ['InvoiceNumber,Date,WholesaleCustomer,Mobile,GSTIN,ItemsCount,SubTotal,Discount,GrandTotal,Paid,Due,PaymentStatus,DeliveryStatus'];
+      const rows = filteredInvoices.map(s => `"${s.invoiceNumber}","${s.date}","${s.wholesaleCustomer}","${s.mobile}","${s.gstin || ''}",${s.items.length},${s.subTotal},${s.discount},${s.grandTotal},${s.paid},${s.due},"${s.paymentStatus}","${s.deliveryStatus}"`);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `wholesale_invoices_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`Exported ${filteredInvoices.length} wholesale invoices`, 'success');
+    }, 'Export Wholesale Invoices');
+  };
+
   const handleCreateDealer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!dealerForm.shopName || !dealerForm.ownerName || !dealerForm.mobile) {
@@ -137,52 +173,55 @@ export const WholesaleDealersView: React.FC = () => {
       return;
     }
 
-    const nextId = `DLR-${100 + dealers.length + 1}`;
-    const newDealer: Dealer = {
-      dealerId: nextId,
-      shopName: dealerForm.shopName.trim(),
-      ownerName: dealerForm.ownerName.trim(),
-      mobile: dealerForm.mobile.trim(),
-      whatsapp: dealerForm.whatsapp?.trim() || dealerForm.mobile.trim(),
-      altMobile: dealerForm.altMobile?.trim(),
-      address: `${dealerForm.village ? dealerForm.village + ', ' : ''}${dealerForm.district} ${dealerForm.pinCode || ''}`.trim(),
-      village: dealerForm.village?.trim(),
-      postOffice: dealerForm.postOffice?.trim(),
-      policeStation: dealerForm.policeStation?.trim(),
-      district: dealerForm.district || 'South 24 Parganas',
-      state: dealerForm.state || 'West Bengal',
-      pinCode: dealerForm.pinCode?.trim(),
-      gstin: dealerForm.gstin?.trim(),
-      creditLimit: Number(dealerForm.creditLimit) || 50000,
-      paymentTerms: dealerForm.paymentTerms || '30 Days Credit',
-      openingDue: Number(dealerForm.openingDue) || 0,
-      currentDue: Number(dealerForm.openingDue) || 0,
-      totalPurchase: 0,
-      status: 'Active'
-    };
+    checkAndExecuteAction('WholesaleDealers', 'create', () => {
+      const nextId = `DLR-${100 + dealers.length + 1}`;
+      const newDealer: Dealer = {
+        dealerId: nextId,
+        shopName: dealerForm.shopName!.trim(),
+        ownerName: dealerForm.ownerName!.trim(),
+        mobile: dealerForm.mobile!.trim(),
+        whatsapp: dealerForm.whatsapp?.trim() || dealerForm.mobile!.trim(),
+        altMobile: dealerForm.altMobile?.trim(),
+        address: `${dealerForm.village ? dealerForm.village + ', ' : ''}${dealerForm.district} ${dealerForm.pinCode || ''}`.trim(),
+        village: dealerForm.village?.trim(),
+        postOffice: dealerForm.postOffice?.trim(),
+        policeStation: dealerForm.policeStation?.trim(),
+        district: dealerForm.district || 'South 24 Parganas',
+        state: dealerForm.state || 'West Bengal',
+        pinCode: dealerForm.pinCode?.trim(),
+        gstin: dealerForm.gstin?.trim(),
+        creditLimit: Number(dealerForm.creditLimit) || 50000,
+        paymentTerms: dealerForm.paymentTerms || '30 Days Credit',
+        openingDue: Number(dealerForm.openingDue) || 0,
+        currentDue: Number(dealerForm.openingDue) || 0,
+        totalPurchase: 0,
+        status: 'Active'
+      };
 
-    saveDealer(newDealer);
-    setShowAddDealerModal(false);
-    setDealerForm({
-      shopName: '',
-      ownerName: '',
-      mobile: '',
-      whatsapp: '',
-      address: '',
-      village: '',
-      postOffice: '',
-      policeStation: '',
-      district: 'South 24 Parganas',
-      state: 'West Bengal',
-      pinCode: '',
-      gstin: '',
-      creditLimit: 50000,
-      paymentTerms: '30 Days Credit',
-      openingDue: 0,
-      currentDue: 0,
-      totalPurchase: 0,
-      status: 'Active'
-    });
+      saveDealer(newDealer);
+      setShowAddDealerModal(false);
+      setDealerForm({
+        shopName: '',
+        ownerName: '',
+        mobile: '',
+        whatsapp: '',
+        address: '',
+        village: '',
+        postOffice: '',
+        policeStation: '',
+        district: 'South 24 Parganas',
+        state: 'West Bengal',
+        pinCode: '',
+        gstin: '',
+        creditLimit: 50000,
+        paymentTerms: '30 Days Credit',
+        openingDue: 0,
+        currentDue: 0,
+        totalPurchase: 0,
+        status: 'Active'
+      });
+      showToast(`Dealer ${newDealer.shopName} added successfully`, 'success');
+    }, 'Add Optical Dealer');
   };
 
   const handleAddItemToInvoice = () => {
@@ -257,55 +296,62 @@ export const WholesaleDealersView: React.FC = () => {
       total: item.total
     }));
 
-    const createdSale = createWholesaleSale({
-      dealerId: selectedDealer?.dealerId,
-      dealerName: selectedDealer?.shopName,
-      wholesaleCustomer: shopName,
-      stockistName: 'Paharpur Eye Care Stockist Hub',
-      gstin,
-      mobile,
-      items: saleItems,
-      subTotal: itemsSubtotal,
-      discount: discountAmount,
-      discountType: 'Percentage',
-      taxTotal: 0,
-      grandTotal: invoiceGrandTotal,
-      paid: paidAmount,
-      due: calculatedDue,
-      paymentMode,
-      salesperson: `${role} Desk`,
-      deliveryStatus,
-      paymentStatus: calculatedDue === 0 ? 'Paid' : paidAmount > 0 ? 'Partial' : 'Due',
-      notes: invoiceNotes
-    });
+    checkAndExecuteAction('Sales', 'create', () => {
+      const createdSale = createWholesaleSale({
+        dealerId: selectedDealer?.dealerId,
+        dealerName: selectedDealer?.shopName,
+        wholesaleCustomer: shopName,
+        stockistName: 'Paharpur Eye Care Stockist Hub',
+        gstin,
+        mobile,
+        items: saleItems,
+        subTotal: itemsSubtotal,
+        discount: discountAmount,
+        discountType: 'Percentage',
+        taxTotal: 0,
+        grandTotal: invoiceGrandTotal,
+        paid: paidAmount,
+        due: calculatedDue,
+        paymentMode,
+        salesperson: `${role} Desk`,
+        deliveryStatus,
+        paymentStatus: calculatedDue === 0 ? 'Paid' : paidAmount > 0 ? 'Partial' : 'Due',
+        notes: invoiceNotes
+      });
 
-    setShowNewInvoiceModal(false);
-    setOrderItems([]);
-    setPaidAmount(0);
-    setInvoiceDiscountPercent(0);
-    setInvoiceNotes('');
+      setShowNewInvoiceModal(false);
+      setOrderItems([]);
+      setPaidAmount(0);
+      setInvoiceDiscountPercent(0);
+      setInvoiceNotes('');
+      showToast(`Wholesale invoice ${createdSale.invoiceNumber} created`, 'success');
 
-    // Offer to print invoice
-    setPrintModalData({
-      type: 'invoice',
-      data: {
-        ...createdSale,
-        isWholesale: true,
-        dealer: selectedDealer
+      // Offer to print invoice if user has print permission
+      if (hasPermission('Sales', 'print')) {
+        setPrintModalData({
+          type: 'invoice',
+          data: {
+            ...createdSale,
+            isWholesale: true,
+            dealer: selectedDealer
+          }
+        });
       }
-    });
+    }, 'Create Wholesale Invoice');
   };
 
   const handlePrintWholesaleInvoice = (sale: WholesaleSale) => {
-    const dealer = dealers.find(d => d.dealerId === sale.dealerId);
-    setPrintModalData({
-      type: 'invoice',
-      data: {
-        ...sale,
-        isWholesale: true,
-        dealer
-      }
-    });
+    checkAndExecuteAction('Sales', 'print', () => {
+      const dealer = dealers.find(d => d.dealerId === sale.dealerId);
+      setPrintModalData({
+        type: 'invoice',
+        data: {
+          ...sale,
+          isWholesale: true,
+          dealer
+        }
+      });
+    }, 'Print Wholesale Invoice');
   };
 
   const handleOpenWhatsApp = (d: Dealer) => {
@@ -418,12 +464,36 @@ export const WholesaleDealersView: React.FC = () => {
                 className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
               />
             </div>
-            <button
-              onClick={() => setShowAddDealerModal(true)}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
-            >
-              <Plus className="w-4 h-4" /> Add Optical Dealer
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {hasPermission('WholesaleDealers', 'export') && (
+                <button
+                  onClick={handleExportDealers}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold text-xs flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
+                  title="Export Dealers CSV"
+                >
+                  <Download className="w-4 h-4 text-slate-600" /> Export
+                </button>
+              )}
+              {hasPermission('WholesaleDealers', 'print') && (
+                <button
+                  onClick={() => checkAndExecuteAction('WholesaleDealers', 'print', () => window.print(), 'Print Dealers')}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold text-xs flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
+                  title="Print Dealers"
+                >
+                  <Printer className="w-4 h-4 text-slate-600" /> Print
+                </button>
+              )}
+              {hasPermission('WholesaleDealers', 'create') && (
+                <button
+                  onClick={() => {
+                    checkAndExecuteAction('WholesaleDealers', 'create', () => setShowAddDealerModal(true), 'Add Optical Dealer');
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Add Optical Dealer
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">

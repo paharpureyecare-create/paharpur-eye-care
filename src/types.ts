@@ -19,7 +19,7 @@ export type UserRole =
   | 'Marketing Staff'
   | 'Read Only';
 
-export type PermissionAction = 'view' | 'create' | 'edit' | 'delete' | 'export' | 'print';
+export type PermissionAction = 'view' | 'create' | 'edit' | 'delete' | 'export' | 'print' | 'send' | 'disable';
 
 export type PermissionModule =
   | 'Dashboard'
@@ -65,6 +65,8 @@ export interface ModulePermissions {
   delete: boolean;
   export: boolean;
   print: boolean;
+  send?: boolean;
+  disable?: boolean;
 }
 
 export type RolePermissionsMap = Record<CanonicalRole, Record<PermissionModule, ModulePermissions>>;

@@ -24,7 +24,8 @@ import {
   Archive,
   RotateCcw,
   Trash2,
-  XCircle
+  XCircle,
+  Download
 } from 'lucide-react';
 import { EditSpectacleOrderModal } from './EditSpectacleOrderModal';
 import { ViewSpectacleOrderModal } from './ViewSpectacleOrderModal';
@@ -42,7 +43,9 @@ export const SpectacleOrdersView: React.FC = () => {
     restoreSpectacleOrder,
     deleteSpectacleOrder,
     cancelSpectacleOrder,
-    showToast
+    showToast,
+    hasPermission,
+    checkAndExecuteAction
   } = useErp();
 
   const [search, setSearch] = useState('');
@@ -97,55 +100,89 @@ export const SpectacleOrdersView: React.FC = () => {
   });
 
   const handleArchiveOrder = (orderId: string, name: string) => {
-    const reason = prompt(`Reason for archiving order #${orderId} (${name}):`, 'Cancelled / Old Order');
-    if (reason !== null) {
-      archiveSpectacleOrder(orderId, reason || 'Archived by Admin');
-    }
+    checkAndExecuteAction('Spectacle Orders', 'edit', () => {
+      const reason = prompt(`Reason for archiving order #${orderId} (${name}):`, 'Cancelled / Old Order');
+      if (reason !== null) {
+        archiveSpectacleOrder(orderId, reason || 'Archived by Admin');
+      }
+    }, 'Archive Spectacle Order');
   };
 
   const handleRestoreOrder = (orderId: string, name: string) => {
-    if (window.confirm(`Restore order #${orderId} (${name}) to New / Active status?`)) {
-      restoreSpectacleOrder(orderId);
-    }
+    checkAndExecuteAction('Spectacle Orders', 'edit', () => {
+      if (window.confirm(`Restore order #${orderId} (${name}) to New / Active status?`)) {
+        restoreSpectacleOrder(orderId);
+      }
+    }, 'Restore Spectacle Order');
   };
 
   const handleDeleteOrder = (orderId: string, name: string) => {
-    const confirmText = prompt(
-      `⚠️ ADMIN PERMANENT DELETE\nThis will permanently remove spectacle order #${orderId} (${name}).\nType "DELETE" to confirm:`
-    );
-    if (confirmText === 'DELETE') {
-      deleteSpectacleOrder(orderId);
-    } else if (confirmText !== null) {
-      showToast('Deletion cancelled: text did not match DELETE', 'warning');
-    }
+    checkAndExecuteAction('Spectacle Orders', 'delete', () => {
+      const confirmText = prompt(
+        `⚠️ ADMIN PERMANENT DELETE\nThis will permanently remove spectacle order #${orderId} (${name}).\nType "DELETE" to confirm:`
+      );
+      if (confirmText === 'DELETE') {
+        deleteSpectacleOrder(orderId);
+      } else if (confirmText !== null) {
+        showToast('Deletion cancelled: text did not match DELETE', 'warning');
+      }
+    }, 'Delete Spectacle Order');
+  };
+
+  const handleExportOrders = () => {
+    checkAndExecuteAction('Spectacle Orders', 'export', () => {
+      const headers = ['OrderId,CustomerName,MRD,Mobile,FrameBrand,LensType,LensBrand,Total,Advance,Due,Status,DeliveryDate'];
+      const rows = filtered.map(o => `"${o.orderId}","${o.customerName}","${o.mrd || ''}","${o.mobile || ''}","${o.frameBrand || ''}","${o.lensType || ''}","${o.lensBrand || ''}",${o.total || 0},${o.advance || 0},${o.due || 0},"${o.status}","${o.deliveryDate || ''}"`);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `spectacle_orders_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`Exported ${filtered.length} spectacle orders successfully`, 'success');
+    }, 'Export Spectacle Orders');
+  };
+
+  const handlePrintOrdersList = () => {
+    checkAndExecuteAction('Spectacle Orders', 'print', () => {
+      window.print();
+    }, 'Print Spectacle Orders');
   };
 
   const handleWhatsAppReady = (order: SpectacleOrder) => {
-    const phone = order.whatsapp || order.mobile;
-    const cleanMobile = phone.replace(/[^0-9]/g, '');
-    const fullNumber = cleanMobile.length === 10 ? `91${cleanMobile}` : cleanMobile;
-    
-    let msg = `Dear ${order.customerName},\nGreetings from Paharpur Eye Care! Your Spectacle Order (${order.orderId}) update: Status: ${order.status}, Net Total: ₹${order.total}, Due: ₹${order.due}.`;
-    if (order.status === 'Ready') {
-      msg = `Dear ${order.customerName},\nGreetings from Paharpur Eye Care! 👓 Your custom Spectacle Order (${order.orderId}) is READY for collection. Frame: ${order.frameBrand || 'Selected Frame'}. Balance Due: ₹${order.due}. Please visit our optical store to collect your glasses. Thank you!`;
-    }
-    window.open(`https://wa.me/${fullNumber}?text=${encodeURIComponent(msg)}`, '_blank');
+    checkAndExecuteAction('WhatsApp CRM', 'send', () => {
+      const phone = order.whatsapp || order.mobile;
+      const cleanMobile = phone.replace(/[^0-9]/g, '');
+      const fullNumber = cleanMobile.length === 10 ? `91${cleanMobile}` : cleanMobile;
+      
+      let msg = `Dear ${order.customerName},\nGreetings from Paharpur Eye Care! Your Spectacle Order (${order.orderId}) update: Status: ${order.status}, Net Total: ₹${order.total}, Due: ₹${order.due}.`;
+      if (order.status === 'Ready') {
+        msg = `Dear ${order.customerName},\nGreetings from Paharpur Eye Care! 👓 Your custom Spectacle Order (${order.orderId}) is READY for collection. Frame: ${order.frameBrand || 'Selected Frame'}. Balance Due: ₹${order.due}. Please visit our optical store to collect your glasses. Thank you!`;
+      }
+      window.open(`https://wa.me/${fullNumber}?text=${encodeURIComponent(msg)}`, '_blank');
+    }, 'Send WhatsApp Order Alert');
   };
 
   const handlePrintSlip = (order: SpectacleOrder) => {
-    setPrintModalData({
-      type: 'spectacle-order',
-      data: order
-    });
+    checkAndExecuteAction('Spectacle Orders', 'print', () => {
+      setPrintModalData({
+        type: 'spectacle-order',
+        data: order
+      });
+    }, 'Print Spectacle Job Slip');
   };
 
   const handleDeliver = (order: SpectacleOrder) => {
-    updateSpectacleOrderStatus(order.orderId, 'Delivered');
-    if (order.due > 0) {
-      showToast(`Order marked Delivered. Outstanding due balance is ₹${order.due}.`, 'info');
-    } else {
-      showToast(`Order ${order.orderId} delivered successfully!`, 'success');
-    }
+    checkAndExecuteAction('Spectacle Orders', 'edit', () => {
+      updateSpectacleOrderStatus(order.orderId, 'Delivered');
+      if (order.due > 0) {
+        showToast(`Order marked Delivered. Outstanding due balance is ₹${order.due}.`, 'info');
+      } else {
+        showToast(`Order ${order.orderId} delivered successfully!`, 'success');
+      }
+    }, 'Mark Order Delivered');
   };
 
   const handleOpenCustomer360 = (order: SpectacleOrder) => {
@@ -198,13 +235,39 @@ export const SpectacleOrdersView: React.FC = () => {
             </p>
           </div>
 
-          <button
-            id="btn-new-spectacle-order"
-            onClick={() => setQuickModal('new-order')}
-            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer self-start md:self-auto hover:scale-102"
-          >
-            <Plus className="w-4 h-4" /> + Book New Spectacle Order
-          </button>
+          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+            {hasPermission('Spectacle Orders', 'export') && (
+              <button
+                id="btn-export-spectacle-orders"
+                onClick={handleExportOrders}
+                className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors border border-white/20"
+                title="Export Orders CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export
+              </button>
+            )}
+
+            {hasPermission('Spectacle Orders', 'print') && (
+              <button
+                id="btn-print-spectacle-orders-list"
+                onClick={handlePrintOrdersList}
+                className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors border border-white/20"
+                title="Print Orders List"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                Print
+              </button>
+            )}
+
+            <button
+              id="btn-new-spectacle-order"
+              onClick={() => checkAndExecuteAction('Spectacle Orders', 'create', () => setQuickModal('new-order'), 'Book Spectacle Order')}
+              className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer hover:scale-102"
+            >
+              <Plus className="w-4 h-4" /> + Book Order
+            </button>
+          </div>
         </div>
 
         {/* Metric Summary Cards */}
@@ -377,7 +440,13 @@ export const SpectacleOrdersView: React.FC = () => {
                     <td className="py-3.5 px-4">
                       <select
                         value={order.status}
-                        onChange={e => updateSpectacleOrderStatus(order.orderId, e.target.value as SpectacleOrderStatus)}
+                        disabled={!hasPermission('Spectacle Orders', 'edit')}
+                        onChange={e => {
+                          const newStatus = e.target.value as SpectacleOrderStatus;
+                          checkAndExecuteAction('Spectacle Orders', 'edit', () => {
+                            updateSpectacleOrderStatus(order.orderId, newStatus);
+                          }, 'Change Spectacle Order Status');
+                        }}
                         className={`text-xs font-bold rounded-lg px-2.5 py-1 border cursor-pointer ${
                           order.status === 'Ready'
                             ? 'bg-cyan-100 text-cyan-900 border-cyan-300'
@@ -412,18 +481,20 @@ export const SpectacleOrdersView: React.FC = () => {
                         </button>
 
                         {/* 2. Edit Button */}
-                        <button
-                          onClick={() => setSelectedOrderForEdit(order)}
-                          className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                          title="Edit Order, Pricing, Power & Customer Info"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
+                        {hasPermission('Spectacle Orders', 'edit') && (
+                          <button
+                            onClick={() => checkAndExecuteAction('Spectacle Orders', 'edit', () => setSelectedOrderForEdit(order), 'Edit Spectacle Order')}
+                            className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                            title="Edit Order, Pricing, Power & Customer Info"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                        )}
 
                         {/* 3. Collect Payment Button (If Due > 0) */}
-                        {order.due > 0 && (
+                        {order.due > 0 && hasPermission('Billing', 'create') && (
                           <button
-                            onClick={() => setSelectedOrderForPayment(order)}
+                            onClick={() => checkAndExecuteAction('Billing', 'create', () => setSelectedOrderForPayment(order), 'Collect Order Payment')}
                             className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                             title={`Collect Payment (Due: ₹${order.due})`}
                           >
@@ -432,25 +503,29 @@ export const SpectacleOrdersView: React.FC = () => {
                         )}
 
                         {/* 4. WhatsApp Ready Alert */}
-                        <button
-                          onClick={() => handleWhatsAppReady(order)}
-                          className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                          title="Send WhatsApp Ready / Status Alert"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                        </button>
+                        {hasPermission('WhatsApp CRM', 'send') && (
+                          <button
+                            onClick={() => handleWhatsAppReady(order)}
+                            className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                            title="Send WhatsApp Ready / Status Alert"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                        )}
 
                         {/* 5. Print Invoice / Slip */}
-                        <button
-                          onClick={() => handlePrintSlip(order)}
-                          className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                          title="Print Spectacle Job Slip & Invoice"
-                        >
-                          <Printer className="w-4 h-4" />
-                        </button>
+                        {hasPermission('Spectacle Orders', 'print') && (
+                          <button
+                            onClick={() => handlePrintSlip(order)}
+                            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                            title="Print Spectacle Job Slip & Invoice"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+                        )}
 
                         {/* 6. Deliver 1-Click Button */}
-                        {order.status !== 'Delivered' && (
+                        {order.status !== 'Delivered' && hasPermission('Spectacle Orders', 'edit') && (
                           <button
                             onClick={() => handleDeliver(order)}
                             className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 shadow-2xs cursor-pointer"
@@ -462,32 +537,36 @@ export const SpectacleOrdersView: React.FC = () => {
                         )}
 
                         {/* 7. Archive / Restore */}
-                        {order.status === 'Archived' ? (
-                          <button
-                            onClick={() => handleRestoreOrder(order.orderId, order.customerName)}
-                            className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                            title="Restore Order"
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleArchiveOrder(order.orderId, order.customerName)}
-                            className="p-1.5 bg-slate-100 hover:bg-amber-50 text-slate-600 hover:text-amber-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                            title="Archive Order"
-                          >
-                            <Archive className="w-4 h-4" />
-                          </button>
+                        {hasPermission('Spectacle Orders', 'edit') && (
+                          order.status === 'Archived' ? (
+                            <button
+                              onClick={() => handleRestoreOrder(order.orderId, order.customerName)}
+                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                              title="Restore Order"
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleArchiveOrder(order.orderId, order.customerName)}
+                              className="p-1.5 bg-slate-100 hover:bg-amber-50 text-slate-600 hover:text-amber-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                              title="Archive Order"
+                            >
+                              <Archive className="w-4 h-4" />
+                            </button>
+                          )
                         )}
 
                         {/* 8. Permanent Delete */}
-                        <button
-                          onClick={() => handleDeleteOrder(order.orderId, order.customerName)}
-                          className="p-1.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                          title="Permanent Delete (Admin Only)"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {hasPermission('Spectacle Orders', 'delete') && (
+                          <button
+                            onClick={() => handleDeleteOrder(order.orderId, order.customerName)}
+                            className="p-1.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 rounded-lg text-xs font-bold transition-colors border border-slate-200 cursor-pointer"
+                            title="Permanent Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
 
                       </div>
                     </td>

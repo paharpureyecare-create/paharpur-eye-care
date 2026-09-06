@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Patient,
   Appointment,
@@ -50,13 +50,17 @@ import {
   PermissionModule,
   PermissionAction,
   CanonicalRole,
-  FailedAccessAttempt
+  FailedAccessAttempt,
+  ModulePermissions
 } from '../types';
 import {
   saveCloudDocument,
   loadCloudCollection,
   loadCloudDocument,
   deleteCloudDocument,
+  subscribeCloudCollection,
+  subscribeCloudDocument,
+  sanitizeDocId,
   migrateCollectionChunked,
   loadERPUsers,
   saveERPUser,
@@ -301,13 +305,18 @@ interface ErpContextType {
   syncAllToFirestore: () => Promise<void>;
   syncAllFromFirestore: () => Promise<void>;
   firebaseUser: FirebaseUser | null;
+  authLoading: boolean;
   erpUsers: ERPUser[];
   currentUser: ERPUser | null;
+  setCurrentUser: React.Dispatch<React.SetStateAction<ERPUser | null>>;
   saveUserAccount: (user: ERPUser) => Promise<boolean>;
   deleteUserAccount: (uid: string) => Promise<boolean>;
   toggleUserStatus: (uid: string, status?: 'Active' | 'Disabled') => Promise<boolean>;
+  updateUserCustomPermissions: (uid: string, customPermissions: Partial<Record<PermissionModule, Partial<ModulePermissions>>>) => Promise<boolean>;
+  switchActiveStaff: (user: ERPUser) => void;
   loginWithGoogleAccount: () => Promise<boolean>;
   loginWithEmailAccount: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithQuickRole: (role: 'Owner/Admin' | 'Doctor' | 'Staff' | 'Receptionist') => Promise<boolean>;
   logoutAccount: () => Promise<void>;
   rolePermissions: RolePermissionsMap;
   updateRolePermissions: (newPermissions: RolePermissionsMap) => Promise<boolean>;
@@ -490,6 +499,24 @@ function setStored<T>(key: string, value: T): void {
   }
 }
 
+export const sanitizeAndDeduplicateAuditLogs = (logs: AuditLog[]): AuditLog[] => {
+  if (!Array.isArray(logs)) return [];
+  const seenIds = new Set<string>();
+  const result: AuditLog[] = [];
+
+  for (let i = 0; i < logs.length; i++) {
+    const item = logs[i];
+    if (!item) continue;
+    let id = item.id;
+    if (!id || seenIds.has(id)) {
+      id = `AUD-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+    }
+    seenIds.add(id);
+    result.push({ ...item, id });
+  }
+  return result;
+};
+
 export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [role, setRole] = useState<UserRole>(() => getStored('ROLE', 'Admin'));
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
@@ -571,7 +598,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
     const res = getStored('AUDIT_LOGS', INITIAL_AUDIT_LOGS);
-    return Array.isArray(res) ? res : INITIAL_AUDIT_LOGS;
+    const raw = Array.isArray(res) ? res : INITIAL_AUDIT_LOGS;
+    return sanitizeAndDeduplicateAuditLogs(raw);
   });
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>(() => {
     const res = getStored('WHATSAPP_TEMPLATES', INITIAL_TEMPLATES);
@@ -740,11 +768,43 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     ];
   });
-  const [currentUser, setCurrentUser] = useState<ERPUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<ERPUser | null>(() => {
+    try {
+      const savedUid = localStorage.getItem('PAHARPUR_ACTIVE_STAFF_UID');
+      const savedUsers = localStorage.getItem('PAHARPUR_ERP_USERS');
+      if (savedUsers) {
+        const parsed: ERPUser[] = JSON.parse(savedUsers);
+        if (savedUid) {
+          const found = parsed.find(u => u.uid === savedUid);
+          if (found) return found;
+        }
+        if (parsed.length > 0) return parsed[0];
+      }
+    } catch (_) {}
+    return null;
+  });
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     localStorage.setItem('PAHARPUR_ERP_USERS', JSON.stringify(erpUsers));
+  }, [erpUsers]);
+
+  // Keep currentUser synchronized with erpUsers whenever permissions or roles change
+  useEffect(() => {
+    if (currentUser) {
+      const latest = erpUsers.find(u => u.uid === currentUser.uid);
+      if (latest && JSON.stringify(latest) !== JSON.stringify(currentUser)) {
+        setCurrentUser(latest);
+      }
+    } else if (erpUsers.length > 0) {
+      const savedUid = localStorage.getItem('PAHARPUR_ACTIVE_STAFF_UID');
+      const initial = (savedUid ? erpUsers.find(u => u.uid === savedUid) : null) || erpUsers[0];
+      if (initial) {
+        setCurrentUser(initial);
+        setRole(initial.role);
+      }
+    }
   }, [erpUsers]);
 
   // Auth State Listener
@@ -757,11 +817,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (matched.status === 'Disabled') {
             await logoutUser();
             setCurrentUser(null);
+            setAuthLoading(false);
             showToast('Your staff account has been disabled by the Administrator. Access blocked. / আপনার অ্যাকাউন্টটি নিষ্ক্রিয় করা হয়েছে।', 'error');
             return;
           }
           setCurrentUser(matched);
           setRole(matched.role);
+          localStorage.setItem('PAHARPUR_ACTIVE_STAFF_UID', matched.uid);
         } else {
           const assignedRole: UserRole = (user.email === 'paharpureyecare@gmail.com' || (user.email && user.email.includes('admin'))) ? 'Admin' : 'Receptionist';
           const newProfile: ERPUser = {
@@ -775,12 +837,19 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setErpUsers(prev => [newProfile, ...prev.filter(u => u.uid !== newProfile.uid)]);
           setCurrentUser(newProfile);
           setRole(assignedRole);
+          localStorage.setItem('PAHARPUR_ACTIVE_STAFF_UID', newProfile.uid);
           saveCloudDocument('users', newProfile.uid, newProfile).catch(() => {});
         }
       } else {
-        const adminProfile = erpUsers.find(u => u.role === 'Admin') || erpUsers[0];
-        setCurrentUser(adminProfile || null);
+        // When not logged in via Firebase Auth, default to the saved active staff member or Master Admin
+        const savedUid = localStorage.getItem('PAHARPUR_ACTIVE_STAFF_UID');
+        const fallback = (savedUid ? erpUsers.find(u => u.uid === savedUid) : null) || erpUsers[0] || null;
+        if (fallback) {
+          setCurrentUser(fallback);
+          setRole(fallback.role);
+        }
       }
+      setAuthLoading(false);
     });
     return () => unsub();
   }, [erpUsers]);
@@ -869,27 +938,114 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loginWithEmailAccount = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const matched = erpUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+      const cleanEmail = email.trim();
+      const matched = erpUsers.find(u => u.email.toLowerCase() === cleanEmail.toLowerCase());
       if (matched && matched.status === 'Disabled') {
         showToast('This staff account has been disabled by the Administrator.', 'error');
         return { success: false, error: 'Your staff account has been disabled by the Administrator.' };
       }
 
-      const res = await loginWithEmail(email, pass);
-      if (res.user) {
+      let resUser: FirebaseUser | null = null;
+      try {
+        const res = await loginWithEmail(cleanEmail, pass);
+        resUser = res.user;
+      } catch (authErr: any) {
+        // If credentials failed but account is an authorized pre-configured clinic user, try creating or fallback
+        if (authErr?.code === 'auth/user-not-found' || authErr?.code === 'auth/invalid-credential') {
+          if (matched) {
+            try {
+              const newCred = await createStaffAuthAccount(cleanEmail, pass);
+              if (newCred.success) {
+                const retry = await loginWithEmail(cleanEmail, pass);
+                resUser = retry.user;
+              }
+            } catch (e) {
+              // fallback
+            }
+          }
+        }
+        if (!resUser) {
+          throw authErr;
+        }
+      }
+
+      if (resUser) {
         if (matched) {
-          const updatedUser: ERPUser = { ...matched, lastLogin: new Date().toISOString() };
+          const updatedUser: ERPUser = { ...matched, uid: resUser.uid, lastLogin: new Date().toISOString() };
+          setCurrentUser(updatedUser);
+          setRole(updatedUser.role);
           saveUserAccount(updatedUser).catch(() => {});
         }
-        showToast(`Signed in as ${res.user.email}`, 'success');
-        addAuditLog('LOGIN', 'Settings', res.user.uid, `Staff user logged in: ${res.user.email}`);
+        showToast(`Signed in as ${resUser.email}`, 'success');
+        addAuditLog('LOGIN', 'Settings', resUser.uid, `Staff user logged in: ${resUser.email}`);
         return { success: true };
       }
       return { success: false, error: 'Invalid login credentials' };
     } catch (err: any) {
-      const msg = err?.message || 'Email login failed';
+      let msg = err?.message || 'Email login failed';
+      if (err?.code === 'auth/invalid-credential' || err?.code === 'auth/wrong-password') {
+        msg = 'Incorrect email or password. Please verify credentials.';
+      } else if (err?.code === 'auth/user-not-found') {
+        msg = 'No user found with this email. Please check spelling or use Quick Role Access.';
+      }
       showToast(msg, 'error');
       return { success: false, error: msg };
+    }
+  };
+
+  const loginWithQuickRole = async (targetRole: 'Owner/Admin' | 'Doctor' | 'Staff' | 'Receptionist'): Promise<boolean> => {
+    try {
+      let targetEmail = 'paharpureyecare@gmail.com';
+      let mappedRole: UserRole = 'Admin';
+      let displayName = 'Paharpur Admin (Owner)';
+
+      if (targetRole === 'Doctor') {
+        targetEmail = 'doctor@paharpureyecare.com';
+        mappedRole = 'Doctor';
+        displayName = 'Dr. S. K. Banerjee';
+      } else if (targetRole === 'Staff') {
+        targetEmail = 'sales@paharpureyecare.com';
+        mappedRole = 'Sales';
+        displayName = 'Optical Staff';
+      } else if (targetRole === 'Receptionist') {
+        targetEmail = 'reception@paharpureyecare.com';
+        mappedRole = 'Receptionist';
+        displayName = 'Front Desk Reception';
+      }
+
+      const user = await ensureFirebaseAuth();
+      let matched = erpUsers.find(u => u.email.toLowerCase() === targetEmail.toLowerCase() || u.role === mappedRole);
+      if (!matched) {
+        matched = {
+          uid: user?.uid || `USR-${targetRole.toUpperCase()}`,
+          email: targetEmail,
+          displayName,
+          role: mappedRole,
+          status: 'Active',
+          createdAt: new Date().toISOString(),
+          lastLogin: new Date().toISOString()
+        };
+        setErpUsers(prev => [matched!, ...prev]);
+      } else {
+        matched = {
+          ...matched,
+          uid: user?.uid || matched.uid,
+          lastLogin: new Date().toISOString()
+        };
+      }
+
+      setCurrentUser(matched);
+      setRole(mappedRole);
+      setFirebaseUser(user);
+      saveCloudDocument('users', matched.uid, matched).catch(() => {});
+
+      showToast(`Workstation loaded: ${displayName} (${mappedRole})`, 'success');
+      addAuditLog('LOGIN', 'Settings', matched.uid, `Role workstation accessed: ${mappedRole} (${targetEmail})`);
+      return true;
+    } catch (err: any) {
+      console.error('loginWithQuickRole error:', err);
+      showToast(err?.message || 'Login failed', 'error');
+      return false;
     }
   };
 
@@ -897,6 +1053,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const userEmail = currentUser?.email || firebaseUser?.email || 'user';
       await logoutUser();
+      setFirebaseUser(null);
+      setCurrentUser(null);
       showToast('Signed out from Firebase Cloud session', 'info');
       addAuditLog('LOGOUT', 'Settings', currentUser?.uid || 'AUTH', `Staff user signed out: ${userEmail}`);
     } catch (err: any) {
@@ -1063,6 +1221,49 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateUserCustomPermissions = async (
+    uid: string,
+    customPermissions: Partial<Record<PermissionModule, Partial<ModulePermissions>>>
+  ): Promise<boolean> => {
+    try {
+      const targetUser = erpUsers.find(u => u.uid === uid);
+      if (!targetUser) {
+        showToast('User account not found', 'error');
+        return false;
+      }
+      const updatedUser: ERPUser = {
+        ...targetUser,
+        customPermissions
+      };
+      const ok = await saveUserAccount(updatedUser);
+      if (ok) {
+        if (currentUser && currentUser.uid === uid) {
+          setCurrentUser(updatedUser);
+        }
+        addAuditLog(
+          'UPDATE',
+          'Settings',
+          uid,
+          `Configured individual staff permissions for ${updatedUser.displayName} (${updatedUser.email})`
+        );
+        showToast(`Saved individual staff permissions for ${updatedUser.displayName}`, 'success');
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      showToast(`Failed to save staff permissions: ${err?.message || err}`, 'error');
+      return false;
+    }
+  };
+
+  const switchActiveStaff = (user: ERPUser) => {
+    setCurrentUser(user);
+    setRole(user.role);
+    localStorage.setItem('PAHARPUR_ACTIVE_STAFF_UID', user.uid);
+    showToast(`Session active staff switched to: ${user.displayName} (${user.role})`, 'info');
+    addAuditLog('LOGIN', 'Settings', user.uid, `Session context switched to ${user.displayName} (${user.role})`);
+  };
+
   // Monitor network status
   useEffect(() => {
     const handleOnline = () => {
@@ -1079,21 +1280,38 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Safe background persist helper
-  const persistToCloud = async (collectionName: string, docId: string, data: any) => {
+  const persistToCloud = useCallback(async (collectionName: string, docId: string, data: any) => {
+    if (!docId) return false;
     try {
-      if (!navigator.onLine) {
-        // Still writes to local offline cache in Firestore SDK
-        await saveCloudDocument(collectionName, docId, data);
-        return;
-      }
       setCloudSyncStatus('syncing');
-      await saveCloudDocument(collectionName, docId, data);
-      setCloudSyncStatus('synced');
-      setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      const author = currentUser?.email || firebaseUser?.email || (role === 'Doctor' ? settings.doctorName : `${role} Staff`);
+      const ok = await saveCloudDocument(collectionName, docId, data, author);
+      if (ok) {
+        setCloudSyncStatus('synced');
+        setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      }
+      return ok;
     } catch (err) {
-      console.warn('Cloud persist background error:', err);
+      console.warn(`Cloud persist error on ${collectionName}/${docId}:`, err);
+      return false;
     }
-  };
+  }, [currentUser, firebaseUser, role, settings.doctorName]);
+
+  const deleteFromCloud = useCallback(async (collectionName: string, docId: string) => {
+    if (!docId) return false;
+    try {
+      setCloudSyncStatus('syncing');
+      const ok = await deleteCloudDocument(collectionName, docId);
+      if (ok) {
+        setCloudSyncStatus('synced');
+        setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      }
+      return ok;
+    } catch (err) {
+      console.warn(`Cloud delete error on ${collectionName}/${docId}:`, err);
+      return false;
+    }
+  }, []);
 
   const syncAllToFirestore = async () => {
     let user = auth.currentUser;
@@ -1216,7 +1434,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (cloudLoyalty.length > 0) setLoyaltyLogs(cloudLoyalty);
       if (cloudPowers.length > 0) setCustomerPowers(cloudPowers);
       if (cloudMasters.length > 0) setMasters(cloudMasters);
-      if (cloudAuditLogs.length > 0) setAuditLogs(cloudAuditLogs);
+      if (cloudAuditLogs.length > 0) setAuditLogs(sanitizeAndDeduplicateAuditLogs(cloudAuditLogs));
       if (cloudTemplates.length > 0) setTemplates(cloudTemplates);
       if (cloudCampaigns.length > 0) setCampaigns(cloudCampaigns);
       if (cloudOffers.length > 0) setOffers(cloudOffers);
@@ -1232,17 +1450,289 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Cloud synchronization: verify and mirror state once authenticated
+  const hasSeededRef = useRef<{ [key: string]: boolean }>({});
+
+  // REAL-TIME MULTI-DEVICE FIRESTORE SYNCHRONIZATION LISTENERS
   useEffect(() => {
-    if (navigator.onLine && firebaseUser) {
-      loadCloudCollection<Patient>('patients').then(cloudPts => {
-        if (cloudPts && cloudPts.length > 0) {
-          syncAllFromFirestore().catch(() => {});
-        }
-      }).catch(err => {
-        console.warn('Cloud verification error:', err);
+    if (!firebaseUser) return;
+
+    setCloudSyncStatus('syncing');
+    const unsubs: Array<() => void> = [];
+
+    // Patients real-time listener
+    unsubs.push(subscribeCloudCollection<Patient>('patients', (items) => {
+      if (items && items.length > 0) {
+        setPatients(items);
+        setCloudSyncStatus('synced');
+        setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      } else if (items && items.length === 0 && patients.length > 0 && !hasSeededRef.current.patients) {
+        hasSeededRef.current.patients = true;
+        patients.forEach(p => saveCloudDocument('patients', p.mrd, p));
+      }
+    }));
+
+    // Appointments real-time listener
+    unsubs.push(subscribeCloudCollection<Appointment>('appointments', (items) => {
+      if (items && items.length > 0) {
+        setAppointments(items);
+        setCloudSyncStatus('synced');
+      } else if (items && items.length === 0 && appointments.length > 0 && !hasSeededRef.current.appointments) {
+        hasSeededRef.current.appointments = true;
+        appointments.forEach(a => saveCloudDocument('appointments', a.id, a));
+      }
+    }));
+
+    // Clinical Visits real-time listener
+    unsubs.push(subscribeCloudCollection<ClinicalVisit>('clinical_visits', (items) => {
+      if (items && items.length > 0) {
+        setVisits(items);
+        setCloudSyncStatus('synced');
+      } else if (items && items.length === 0 && visits.length > 0 && !hasSeededRef.current.clinical_visits) {
+        hasSeededRef.current.clinical_visits = true;
+        visits.forEach(v => saveCloudDocument('clinical_visits', v.visitId, v));
+      }
+    }));
+
+    // Spectacle Orders real-time listener
+    unsubs.push(subscribeCloudCollection<SpectacleOrder>('spectacle_orders', (items) => {
+      if (items && items.length > 0) {
+        setSpectacleOrders(items);
+        setCloudSyncStatus('synced');
+      } else if (items && items.length === 0 && spectacleOrders.length > 0 && !hasSeededRef.current.spectacle_orders) {
+        hasSeededRef.current.spectacle_orders = true;
+        spectacleOrders.forEach(o => saveCloudDocument('spectacle_orders', o.orderId, o));
+      }
+    }));
+
+    // Retail Sales real-time listener
+    unsubs.push(subscribeCloudCollection<RetailSale>('retail_sales', (items) => {
+      if (items && items.length > 0) {
+        setRetailSales(items);
+        setCloudSyncStatus('synced');
+      } else if (items && items.length === 0 && retailSales.length > 0 && !hasSeededRef.current.retail_sales) {
+        hasSeededRef.current.retail_sales = true;
+        retailSales.forEach(s => saveCloudDocument('retail_sales', s.invoiceNumber, s));
+      }
+    }));
+
+    // Wholesale Sales real-time listener
+    unsubs.push(subscribeCloudCollection<WholesaleSale>('wholesale_sales', (items) => {
+      if (items && items.length > 0) {
+        setWholesaleSales(items);
+        setCloudSyncStatus('synced');
+      } else if (items && items.length === 0 && wholesaleSales.length > 0 && !hasSeededRef.current.wholesale_sales) {
+        hasSeededRef.current.wholesale_sales = true;
+        wholesaleSales.forEach(w => saveCloudDocument('wholesale_sales', w.invoiceNumber, w));
+      }
+    }));
+
+    // Customers real-time listener
+    unsubs.push(subscribeCloudCollection<Customer>('customers', (items) => {
+      if (items && items.length > 0) {
+        setCustomers(items);
+        setCloudSyncStatus('synced');
+      } else if (items && items.length === 0 && customers.length > 0 && !hasSeededRef.current.customers) {
+        hasSeededRef.current.customers = true;
+        customers.forEach(c => saveCloudDocument('customers', c.customerId, c));
+      }
+    }));
+
+    // Customer Powers real-time listener
+    unsubs.push(subscribeCloudCollection<CustomerPowerRecord>('customer_powers', (items) => {
+      if (items && items.length > 0) {
+        setCustomerPowers(items);
+      } else if (items && items.length === 0 && customerPowers.length > 0 && !hasSeededRef.current.customer_powers) {
+        hasSeededRef.current.customer_powers = true;
+        customerPowers.forEach(cp => saveCloudDocument('customer_powers', cp.powerId, cp));
+      }
+    }));
+
+    // Frames inventory real-time listener
+    unsubs.push(subscribeCloudCollection<FrameMaster>('frames', (items) => {
+      if (items && items.length > 0) {
+        setFrames(items);
+      } else if (items && items.length === 0 && frames.length > 0 && !hasSeededRef.current.frames) {
+        hasSeededRef.current.frames = true;
+        frames.forEach(f => saveCloudDocument('frames', f.sku, f));
+      }
+    }));
+
+    // Lenses inventory real-time listener
+    unsubs.push(subscribeCloudCollection<LensMaster>('lenses', (items) => {
+      if (items && items.length > 0) {
+        setLenses(items);
+      } else if (items && items.length === 0 && lenses.length > 0 && !hasSeededRef.current.lenses) {
+        hasSeededRef.current.lenses = true;
+        lenses.forEach(l => saveCloudDocument('lenses', l.lensCode, l));
+      }
+    }));
+
+    // Medicines real-time listener
+    unsubs.push(subscribeCloudCollection<MedicineMaster>('medicines', (items) => {
+      if (items && items.length > 0) {
+        setMedicines(items);
+      } else if (items && items.length === 0 && medicines.length > 0 && !hasSeededRef.current.medicines) {
+        hasSeededRef.current.medicines = true;
+        medicines.forEach(m => saveCloudDocument('medicines', m.id, m));
+      }
+    }));
+
+    // Stock Movements ledger real-time listener
+    unsubs.push(subscribeCloudCollection<StockMovement>('stock_movements', (items) => {
+      if (items && items.length > 0) {
+        setStockMovements(items);
+      } else if (items && items.length === 0 && stockMovements.length > 0 && !hasSeededRef.current.stock_movements) {
+        hasSeededRef.current.stock_movements = true;
+        stockMovements.forEach(sm => saveCloudDocument('stock_movements', sm.id, sm));
+      }
+    }));
+
+    // Payments ledger real-time listener
+    unsubs.push(subscribeCloudCollection<PaymentRecord>('payments', (items) => {
+      if (items && items.length > 0) {
+        setPayments(items);
+      } else if (items && items.length === 0 && payments.length > 0 && !hasSeededRef.current.payments) {
+        hasSeededRef.current.payments = true;
+        payments.forEach(p => saveCloudDocument('payments', p.paymentId, p));
+      }
+    }));
+
+    // Loyalty Ledger real-time listener
+    unsubs.push(subscribeCloudCollection<LoyaltyTransaction>('loyalty_logs', (items) => {
+      if (items && items.length > 0) {
+        setLoyaltyLogs(items);
+      } else if (items && items.length === 0 && loyaltyLogs.length > 0 && !hasSeededRef.current.loyalty_logs) {
+        hasSeededRef.current.loyalty_logs = true;
+        loyaltyLogs.forEach(ll => saveCloudDocument('loyalty_logs', ll.id, ll));
+      }
+    }));
+
+    // Stock Adjustments real-time listener
+    unsubs.push(subscribeCloudCollection<StockAdjustmentRecord>('stock_adjustments', (items) => {
+      if (items && items.length > 0) {
+        setStockAdjustments(items);
+      }
+    }));
+
+    // Lens Returns real-time listener
+    unsubs.push(subscribeCloudCollection<LensReturnRecord>('lens_returns', (items) => {
+      if (items && items.length > 0) {
+        setLensReturns(items);
+      }
+    }));
+
+    // Lens Purchases real-time listener
+    unsubs.push(subscribeCloudCollection<LensPurchaseRecord>('lens_purchases', (items) => {
+      if (items && items.length > 0) {
+        setLensPurchases(items);
+      }
+    }));
+
+    // Suppliers real-time listener
+    unsubs.push(subscribeCloudCollection<Supplier>('suppliers', (items) => {
+      if (items && items.length > 0) {
+        setSuppliers(items);
+      } else if (items && items.length === 0 && suppliers.length > 0 && !hasSeededRef.current.suppliers) {
+        hasSeededRef.current.suppliers = true;
+        suppliers.forEach(s => saveCloudDocument('suppliers', s.supplierId, s));
+      }
+    }));
+
+    // Dealers real-time listener
+    unsubs.push(subscribeCloudCollection<Dealer>('dealers', (items) => {
+      if (items && items.length > 0) {
+        setDealers(items);
+      } else if (items && items.length === 0 && dealers.length > 0 && !hasSeededRef.current.dealers) {
+        hasSeededRef.current.dealers = true;
+        dealers.forEach(d => saveCloudDocument('dealers', d.dealerId, d));
+      }
+    }));
+
+    // Masters real-time listener
+    unsubs.push(subscribeCloudCollection<MasterRecord>('masters', (items) => {
+      if (items && items.length > 0) {
+        setMasters(items);
+      } else if (items && items.length === 0 && masters.length > 0 && !hasSeededRef.current.masters) {
+        hasSeededRef.current.masters = true;
+        masters.forEach(m => saveCloudDocument('masters', m.id, m));
+      }
+    }));
+
+    // WhatsApp Templates real-time listener
+    unsubs.push(subscribeCloudCollection<WhatsAppTemplate>('whatsapp_templates', (items) => {
+      if (items && items.length > 0) {
+        setTemplates(items);
+      }
+    }));
+
+    // Marketing Campaigns real-time listener
+    unsubs.push(subscribeCloudCollection<MarketingCampaign>('marketing_campaigns', (items) => {
+      if (items && items.length > 0) {
+        setCampaigns(items);
+      }
+    }));
+
+    // Marketing Offers real-time listener
+    unsubs.push(subscribeCloudCollection<OfferPromotion>('marketing_offers', (items) => {
+      if (items && items.length > 0) {
+        setOffers(items);
+      }
+    }));
+
+    // CRM Leads real-time listener
+    unsubs.push(subscribeCloudCollection<CrmLead>('crm_leads', (items) => {
+      if (items && items.length > 0) {
+        setLeads(items);
+      }
+    }));
+
+    // Automation Rules real-time listener
+    unsubs.push(subscribeCloudCollection<AutomationRule>('automation_rules', (items) => {
+      if (items && items.length > 0) {
+        setAutomationRules(items);
+      }
+    }));
+
+    // Custom Segments real-time listener
+    unsubs.push(subscribeCloudCollection<CustomerSegmentRule>('custom_segments', (items) => {
+      if (items && items.length > 0) {
+        setCustomSegments(items);
+      }
+    }));
+
+    // ERP Users real-time listener
+    unsubs.push(subscribeCloudCollection<ERPUser>('users', (items) => {
+      if (items && items.length > 0) {
+        setErpUsers(items);
+      }
+    }));
+
+    // Audit Logs real-time listener
+    unsubs.push(subscribeCloudCollection<AuditLog>('audit_logs', (items) => {
+      if (items && items.length > 0) {
+        setAuditLogs(sanitizeAndDeduplicateAuditLogs(items));
+      }
+    }));
+
+    // Clinic Settings real-time listener (doc 'main' in 'clinic_settings')
+    unsubs.push(subscribeCloudDocument<ClinicSettings>('clinic_settings', 'main', (docData) => {
+      if (docData && Object.keys(docData).length > 0) {
+        setSettings(prev => ({ ...prev, ...docData }));
+      }
+    }));
+
+    // Role Permissions real-time listener (doc 'role_permissions' in 'system_config')
+    unsubs.push(subscribeCloudDocument<{ permissions: RolePermissionsMap }>('system_config', 'role_permissions', (docData) => {
+      if (docData && docData.permissions) {
+        setRolePermissions(docData.permissions);
+      }
+    }));
+
+    return () => {
+      unsubs.forEach(unsub => {
+        try { unsub(); } catch (_) {}
       });
-    }
+    };
   }, [firebaseUser]);
 
   // Auto persist on changes
@@ -1305,8 +1795,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const formattedOld = oldValue || (beforeValue ? (typeof beforeValue === 'string' ? beforeValue : JSON.stringify(beforeValue)) : undefined);
     const formattedNew = newValue || (afterValue ? (typeof afterValue === 'string' ? afterValue : JSON.stringify(afterValue)) : undefined);
 
+    const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
     const log: AuditLog = {
-      id: `AUD-${Date.now().toString().slice(-6)}`,
+      id: `AUD-${uniqueSuffix}`,
       timestamp: now.toISOString(),
       date: dateStr,
       time: timeStr,
@@ -4767,7 +5258,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(data.lensReturns)) setLensReturns(data.lensReturns);
         if (Array.isArray(data.lensPurchases)) setLensPurchases(data.lensPurchases);
         if (Array.isArray(data.payments)) setPayments(data.payments);
-        if (Array.isArray(data.auditLogs)) setAuditLogs(data.auditLogs);
+        if (Array.isArray(data.auditLogs)) setAuditLogs(sanitizeAndDeduplicateAuditLogs(data.auditLogs));
         if (Array.isArray(data.templates)) setTemplates(data.templates);
         if (Array.isArray(data.offers)) setOffers(data.offers);
         if (Array.isArray(data.communicationLogs)) setCommunicationLogs(data.communicationLogs);
@@ -4981,13 +5472,18 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         syncAllToFirestore,
         syncAllFromFirestore,
         firebaseUser,
+        authLoading,
         erpUsers,
         currentUser,
+        setCurrentUser,
         saveUserAccount,
         deleteUserAccount,
         toggleUserStatus,
+        updateUserCustomPermissions,
+        switchActiveStaff,
         loginWithGoogleAccount,
         loginWithEmailAccount,
+        loginWithQuickRole,
         logoutAccount,
         rolePermissions,
         updateRolePermissions,

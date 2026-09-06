@@ -64,7 +64,9 @@ export const LensInventoryView: React.FC = () => {
     activeCompanies = [],
     activeCoatings = [],
     activeRefractiveIndices = [],
-    setActiveTab: setGlobalActiveTab
+    setActiveTab: setGlobalActiveTab,
+    hasPermission,
+    checkAndExecuteAction
   } = useErp();
 
   const availableLensTypeOptions = useMemo(() => {
@@ -244,6 +246,28 @@ export const LensInventoryView: React.FC = () => {
   const lowStockCount = useMemo(() => lenses.filter(l => l.status === 'Low Stock' || l.status === 'Out of Stock').length, [lenses]);
 
   // Handlers
+  const handleExportLenses = () => {
+    checkAndExecuteAction('Lenses', 'export', () => {
+      const headers = ['LensCode,ProductName,Company,Brand,Type,Category,SPH,CYL,AXIS,ADD,PurchaseRate,WholesaleRate,RetailRate,CurrentStock,ReorderLevel,RackLocation,Status'];
+      const rows = filtered.map(l => `"${l.lensCode}","${l.productName || ''}","${l.company || ''}","${l.brand || ''}","${l.lensType || ''}","${l.category || ''}","${l.sph || ''}","${l.cyl || ''}","${l.axis || ''}","${l.add || ''}",${l.purchaseRate || 0},${l.wholesaleRate || 0},${l.retailRate || 0},${l.currentStock || 0},${l.reorderLevel || 0},"${l.rackLocation || ''}","${l.status || 'Available'}"`);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `lens_inventory_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`Exported ${filtered.length} lens power records successfully`, 'success');
+    }, 'Export Lens Inventory');
+  };
+
+  const handlePrintLenses = () => {
+    checkAndExecuteAction('Lenses', 'print', () => {
+      window.print();
+    }, 'Print Lens Inventory');
+  };
+
   const handleSaveAdjustment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLensCodeForAdjust) {
@@ -254,11 +278,14 @@ export const LensInventoryView: React.FC = () => {
       showToast('Adjustment quantity cannot be 0', 'error');
       return;
     }
-    adjustLensStock(selectedLensCodeForAdjust, adjustQty, adjustType, adjustReason);
-    setShowAdjustModal(false);
-    setSelectedLensCodeForAdjust('');
-    setAdjustQty(0);
-    setAdjustReason('');
+    checkAndExecuteAction('Lenses', 'edit', () => {
+      adjustLensStock(selectedLensCodeForAdjust, adjustQty, adjustType, adjustReason);
+      setShowAdjustModal(false);
+      setSelectedLensCodeForAdjust('');
+      setAdjustQty(0);
+      setAdjustReason('');
+      showToast('Lens stock adjustment recorded', 'success');
+    }, 'Adjust Lens Stock');
   };
 
   const handleSaveReturn = (e: React.FormEvent) => {
@@ -267,22 +294,25 @@ export const LensInventoryView: React.FC = () => {
       showToast('Select lens and enter party name', 'error');
       return;
     }
-    createLensReturn({
-      lensCode: returnLensCode,
-      returnSource: 'Customer',
-      partyName: returnParty.trim(),
-      quantity: returnQty,
-      reason: returnReason,
-      condition: 'Intact',
-      actionTaken: returnRestock ? 'Restocked to Active Inventory' : 'Kept in Defective Hold',
-      restockedToInventory: returnRestock,
-      notes: returnNotes
-    });
-    setShowReturnModal(false);
-    setReturnLensCode('');
-    setReturnParty('');
-    setReturnQty(1);
-    setReturnNotes('');
+    checkAndExecuteAction('Lenses', 'edit', () => {
+      createLensReturn({
+        lensCode: returnLensCode,
+        returnSource: 'Customer',
+        partyName: returnParty.trim(),
+        quantity: returnQty,
+        reason: returnReason,
+        condition: 'Intact',
+        actionTaken: returnRestock ? 'Restocked to Active Inventory' : 'Kept in Defective Hold',
+        restockedToInventory: returnRestock,
+        notes: returnNotes
+      });
+      setShowReturnModal(false);
+      setReturnLensCode('');
+      setReturnParty('');
+      setReturnQty(1);
+      setReturnNotes('');
+      showToast('Lens return logged successfully', 'success');
+    }, 'Log Lens Return');
   };
 
   const handleStockInSubmit = (e: React.FormEvent) => {
@@ -291,25 +321,28 @@ export const LensInventoryView: React.FC = () => {
       showToast('Please specify valid lens SKU and quantity', 'error');
       return;
     }
-    purchaseLensStockIn({
-      lensCode: stockInForm.lensCode,
-      productName: stockInForm.productName,
-      company: stockInForm.company,
-      brand: stockInForm.brand,
-      category: stockInForm.category,
-      lensType: stockInForm.lensType,
-      sph: stockInForm.sph,
-      cyl: stockInForm.cyl,
-      axis: stockInForm.axis,
-      add: stockInForm.add,
-      supplier: stockInForm.supplier,
-      invoiceNumber: stockInForm.invoiceNumber,
-      purchaseDate: stockInForm.purchaseDate,
-      quantity: stockInForm.quantity,
-      purchaseRate: stockInForm.purchaseRate,
-      rack: stockInForm.rack
-    });
-    setShowStockInModal(false);
+    checkAndExecuteAction('Purchases', 'create', () => {
+      purchaseLensStockIn({
+        lensCode: stockInForm.lensCode,
+        productName: stockInForm.productName,
+        company: stockInForm.company,
+        brand: stockInForm.brand,
+        category: stockInForm.category,
+        lensType: stockInForm.lensType,
+        sph: stockInForm.sph,
+        cyl: stockInForm.cyl,
+        axis: stockInForm.axis,
+        add: stockInForm.add,
+        supplier: stockInForm.supplier,
+        invoiceNumber: stockInForm.invoiceNumber,
+        purchaseDate: stockInForm.purchaseDate,
+        quantity: stockInForm.quantity,
+        purchaseRate: stockInForm.purchaseRate,
+        rack: stockInForm.rack
+      });
+      setShowStockInModal(false);
+      showToast('Lens stock-in purchase recorded successfully', 'success');
+    }, 'Purchase Lens Stock');
   };
 
   const handleBatchGenerate = (e: React.FormEvent) => {
@@ -399,26 +432,50 @@ export const LensInventoryView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {hasPermission('Lenses', 'export') && (
+            <button
+              id="btn-export-lenses"
+              onClick={handleExportLenses}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3 py-2 rounded-xl transition-colors border border-slate-200 flex items-center gap-1.5 cursor-pointer"
+              title="Export Lens Inventory CSV"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+            </button>
+          )}
+
+          {hasPermission('Lenses', 'print') && (
+            <button
+              id="btn-print-lenses"
+              onClick={handlePrintLenses}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3 py-2 rounded-xl transition-colors border border-slate-200 flex items-center gap-1.5 cursor-pointer"
+              title="Print Lens Inventory"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Print
+            </button>
+          )}
+
           <button
-            onClick={() => setShowBatchModal(true)}
+            onClick={() => checkAndExecuteAction('Lenses', 'create', () => setShowBatchModal(true), 'Power Matrix Generator')}
             className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs px-3.5 py-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
           >
             <Sparkles className="w-3.5 h-3.5" /> 1-Click Power Matrix Generator
           </button>
           <button
-            onClick={() => setShowStockInModal(true)}
+            onClick={() => checkAndExecuteAction('Purchases', 'create', () => setShowStockInModal(true), 'Purchase / Stock IN')}
             className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs px-3.5 py-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
           >
             <ShoppingBag className="w-3.5 h-3.5" /> Purchase / Stock IN
           </button>
           <button
-            onClick={() => setShowAdjustModal(true)}
+            onClick={() => checkAndExecuteAction('Lenses', 'edit', () => setShowAdjustModal(true), 'Stock Audit / Adjust')}
             className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3.5 py-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
           >
             <SlidersHorizontal className="w-3.5 h-3.5" /> Stock Audit / Adjust
           </button>
           <button
-            onClick={() => setShowReturnModal(true)}
+            onClick={() => checkAndExecuteAction('Lenses', 'edit', () => setShowReturnModal(true), 'Log Return')}
             className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-xs px-3.5 py-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
           >
             <RotateCcw className="w-3.5 h-3.5" /> Log Return
@@ -434,32 +491,34 @@ export const LensInventoryView: React.FC = () => {
           <button
             id="btn-add-lens-sku"
             onClick={() => {
-              setEditingLens({
-                lensCode: `BCG-156-P025-P025-180-${Date.now().toString().slice(-3)}`,
-                productName: 'Blue Cut Green 1.56',
-                company: 'Prime Vision Optics',
-                brand: 'ClearBlue Green HMC',
-                category: 'Blue Cut',
-                lensType: 'BLUE CUT GREEN',
-                design: 'Spherical',
-                coating: 'Green HMC (Anti-Glare UV420)',
-                index: '1.56',
-                diameter: '70mm',
-                material: 'High Index 1.56 Resin',
-                sph: '+0.25',
-                cyl: '+0.25',
-                axis: '180',
-                add: '—',
-                purchaseRate: 210,
-                wholesaleRate: 360,
-                retailRate: 850,
-                mrp: 1200,
-                currentStock: 25,
-                reorderLevel: 8,
-                status: 'Available',
-                rackLocation: 'Rack A - Shelf 01',
-                supplier: 'Essilor Optical India Pvt Ltd'
-              });
+              checkAndExecuteAction('Lenses', 'create', () => {
+                setEditingLens({
+                  lensCode: `BCG-156-P025-P025-180-${Date.now().toString().slice(-3)}`,
+                  productName: 'Blue Cut Green 1.56',
+                  company: 'Prime Vision Optics',
+                  brand: 'ClearBlue Green HMC',
+                  category: 'Blue Cut',
+                  lensType: 'BLUE CUT GREEN',
+                  design: 'Spherical',
+                  coating: 'Green HMC (Anti-Glare UV420)',
+                  index: '1.56',
+                  diameter: '70mm',
+                  material: 'High Index 1.56 Resin',
+                  sph: '+0.25',
+                  cyl: '+0.25',
+                  axis: '180',
+                  add: '—',
+                  purchaseRate: 210,
+                  wholesaleRate: 360,
+                  retailRate: 850,
+                  mrp: 1200,
+                  currentStock: 25,
+                  reorderLevel: 8,
+                  status: 'Available',
+                  rackLocation: 'Rack A - Shelf 01',
+                  supplier: 'Essilor Optical India Pvt Ltd'
+                });
+              }, 'Add Power SKU');
             }}
             className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
           >
@@ -800,61 +859,76 @@ export const LensInventoryView: React.FC = () => {
                         </td>
 
                         <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                          {hasPermission('Lenses', 'edit') && (
+                            <button
+                              onClick={() => {
+                                checkAndExecuteAction('Lenses', 'edit', () => {
+                                  setSelectedLensCodeForAdjust(lens.lensCode);
+                                  setShowAdjustModal(true);
+                                }, 'Audit / Adjust Stock');
+                              }}
+                              className="p-1.5 text-slate-600 hover:bg-slate-100 rounded cursor-pointer transition-colors"
+                              title="Audit / Adjust Stock"
+                            >
+                              <SlidersHorizontal className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={() => {
-                              setSelectedLensCodeForAdjust(lens.lensCode);
-                              setShowAdjustModal(true);
-                            }}
-                            className="p-1.5 text-slate-600 hover:bg-slate-100 rounded cursor-pointer transition-colors"
-                            title="Audit / Adjust Stock"
-                          >
-                            <SlidersHorizontal className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setStockInForm({
-                                lensCode: lens.lensCode,
-                                productName: lens.productName || lens.brand,
-                                company: lens.company,
-                                brand: lens.brand,
-                                category: lens.category,
-                                lensType: lens.lensType || 'BLUE CUT GREEN',
-                                sph: lens.sph || '+0.25',
-                                cyl: lens.cyl || '+0.25',
-                                axis: lens.axis || '180',
-                                add: lens.add || '—',
-                                supplier: lens.supplier || suppliers[0]?.company || 'Essilor Optical India Pvt Ltd',
-                                invoiceNumber: `INV-PUR-${Date.now().toString().slice(-4)}`,
-                                purchaseDate: new Date().toISOString().split('T')[0],
-                                quantity: 20,
-                                purchaseRate: lens.purchaseRate,
-                                rack: lens.rackLocation || 'Rack A - Shelf 01'
-                              });
-                              setShowStockInModal(true);
+                              checkAndExecuteAction('Purchases', 'create', () => {
+                                setStockInForm({
+                                  lensCode: lens.lensCode,
+                                  productName: lens.productName || lens.brand,
+                                  company: lens.company,
+                                  brand: lens.brand,
+                                  category: lens.category,
+                                  lensType: lens.lensType || 'BLUE CUT GREEN',
+                                  sph: lens.sph || '+0.25',
+                                  cyl: lens.cyl || '+0.25',
+                                  axis: lens.axis || '180',
+                                  add: lens.add || '—',
+                                  supplier: lens.supplier || suppliers[0]?.company || 'Essilor Optical India Pvt Ltd',
+                                  invoiceNumber: `INV-PUR-${Date.now().toString().slice(-4)}`,
+                                  purchaseDate: new Date().toISOString().split('T')[0],
+                                  quantity: 20,
+                                  purchaseRate: lens.purchaseRate,
+                                  rack: lens.rackLocation || 'Rack A - Shelf 01'
+                                });
+                                setShowStockInModal(true);
+                              }, 'Quick Stock IN');
                             }}
                             className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded cursor-pointer transition-colors"
                             title="Quick Stock IN"
                           >
                             <Plus className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            onClick={() => setEditingLens(lens)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded cursor-pointer transition-colors"
-                            title="Edit Lens SKU & Power"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (window.confirm(`Delete power SKU ${lens.lensCode}?`)) {
-                                deleteLens(lens.lensCode);
-                              }
-                            }}
-                            className="p-1.5 text-rose-500 hover:bg-rose-50 rounded cursor-pointer transition-colors"
-                            title="Delete Lens SKU"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {hasPermission('Lenses', 'edit') && (
+                            <button
+                              onClick={() => {
+                                checkAndExecuteAction('Lenses', 'edit', () => setEditingLens(lens), 'Edit Lens SKU');
+                              }}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded cursor-pointer transition-colors"
+                              title="Edit Lens SKU & Power"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {hasPermission('Lenses', 'delete') && (
+                            <button
+                              onClick={() => {
+                                checkAndExecuteAction('Lenses', 'delete', () => {
+                                  if (window.confirm(`Delete power SKU ${lens.lensCode}?`)) {
+                                    deleteLens(lens.lensCode);
+                                    showToast(`Deleted lens SKU ${lens.lensCode}`, 'success');
+                                  }
+                                }, 'Delete Lens SKU');
+                              }}
+                              className="p-1.5 text-rose-500 hover:bg-rose-50 rounded cursor-pointer transition-colors"
+                              title="Delete Lens SKU"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -1569,8 +1643,12 @@ export const LensInventoryView: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  saveLens(editingLens);
-                  setEditingLens(null);
+                  const isNew = !lenses.some(l => l.lensCode === editingLens.lensCode);
+                  checkAndExecuteAction('Lenses', isNew ? 'create' : 'edit', () => {
+                    saveLens(editingLens);
+                    setEditingLens(null);
+                    showToast(`Lens SKU ${editingLens.lensCode} saved successfully`, 'success');
+                  }, isNew ? 'Create Lens SKU' : 'Edit Lens SKU');
                 }}
                 className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
               >

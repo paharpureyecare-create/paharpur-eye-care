@@ -9,11 +9,13 @@ import {
   Edit2,
   Trash2,
   Tag,
-  Glasses
+  Glasses,
+  Download,
+  Printer
 } from 'lucide-react';
 
 export const FrameInventoryView: React.FC = () => {
-  const { frames, saveFrame, deleteFrame, setQuickModal } = useErp();
+  const { frames, saveFrame, deleteFrame, setQuickModal, showToast, hasPermission, checkAndExecuteAction } = useErp();
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState<string>('All');
   const [editingFrame, setEditingFrame] = useState<FrameMaster | null>(null);
@@ -43,6 +45,46 @@ export const FrameInventoryView: React.FC = () => {
   const totalFrames = (frames || []).reduce((acc, f) => acc + (f.currentStock || 0), 0);
   const totalValuation = (frames || []).reduce((acc, f) => acc + (f.currentStock || 0) * (f.retailRate || 0), 0);
 
+  const handleExportFrames = () => {
+    checkAndExecuteAction('Frames', 'export', () => {
+      const headers = ['SKU,Brand,Model,Colour,Material,Shape,Gender,Size,PurchaseRate,RetailRate,CurrentStock,ReorderLevel,Status'];
+      const rows = filtered.map(f => `"${f.sku}","${f.brand || ''}","${f.model || ''}","${f.colour || ''}","${f.material || ''}","${f.shape || ''}","${f.gender || ''}","${f.size || ''}",${f.purchaseRate || 0},${f.retailRate || 0},${f.currentStock || 0},${f.reorderLevel || 0},"${f.status || 'Available'}"`);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `frames_inventory_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`Exported ${filtered.length} frames inventory records`, 'success');
+    }, 'Export Frames Inventory');
+  };
+
+  const handlePrintFrames = () => {
+    checkAndExecuteAction('Frames', 'print', () => {
+      window.print();
+    }, 'Print Frames Inventory');
+  };
+
+  const handleDeleteFrame = (sku: string) => {
+    checkAndExecuteAction('Frames', 'delete', () => {
+      if (window.confirm(`Delete frame SKU: ${sku}?`)) {
+        deleteFrame(sku);
+      }
+    }, 'Delete Frame SKU');
+  };
+
+  const handleSaveFrame = () => {
+    if (!editingFrame) return;
+    const isNew = !frames.find(f => f.sku === editingFrame.sku);
+    checkAndExecuteAction('Frames', isNew ? 'create' : 'edit', () => {
+      saveFrame(editingFrame);
+      setEditingFrame(null);
+      showToast(`Frame SKU ${editingFrame.sku} saved successfully`, 'success');
+    }, isNew ? 'Create Frame SKU' : 'Edit Frame SKU');
+  };
+
   return (
     <div className="space-y-6 pb-12">
       
@@ -63,9 +105,33 @@ export const FrameInventoryView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {hasPermission('Frames', 'export') && (
+            <button
+              id="btn-export-frames"
+              onClick={handleExportFrames}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3 py-2 rounded-xl transition-colors border border-slate-200 flex items-center gap-1.5"
+              title="Export Frames CSV"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+            </button>
+          )}
+
+          {hasPermission('Frames', 'print') && (
+            <button
+              id="btn-print-frames"
+              onClick={handlePrintFrames}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3 py-2 rounded-xl transition-colors border border-slate-200 flex items-center gap-1.5"
+              title="Print Frames Inventory"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Print
+            </button>
+          )}
+
           <button
-            onClick={() => setQuickModal('new-purchase')}
+            onClick={() => checkAndExecuteAction('Purchases', 'create', () => setQuickModal('new-purchase'), 'Purchase Stock')}
             className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3.5 py-2 rounded-xl transition-colors"
           >
             + Purchase Stock
@@ -73,25 +139,27 @@ export const FrameInventoryView: React.FC = () => {
           <button
             id="btn-add-frame-sku"
             onClick={() => {
-              setEditingFrame({
-                sku: `FRM-${Date.now().toString().slice(-4)}`,
-                brand: 'New Brand',
-                model: 'Model Series 2026',
-                colour: 'Black Matte',
-                material: 'TR90',
-                shape: 'Rectangle',
-                gender: 'Unisex',
-                size: '52-18-140',
-                purchaseRate: 400,
-                wholesaleRate: 650,
-                retailRate: 1200,
-                mrp: 1599,
-                currentStock: 12,
-                reorderLevel: 5,
-                status: 'Available'
-              });
+              checkAndExecuteAction('Frames', 'create', () => {
+                setEditingFrame({
+                  sku: `FRM-${Date.now().toString().slice(-4)}`,
+                  brand: 'New Brand',
+                  model: 'Model Series 2026',
+                  colour: 'Black Matte',
+                  material: 'TR90',
+                  shape: 'Rectangle',
+                  gender: 'Unisex',
+                  size: '52-18-140',
+                  purchaseRate: 400,
+                  wholesaleRate: 650,
+                  retailRate: 1200,
+                  mrp: 1599,
+                  currentStock: 12,
+                  reorderLevel: 5,
+                  status: 'Available'
+                });
+              }, 'Add New Frame SKU');
             }}
-            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 transition-all hover:scale-105"
+            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             + Add New Frame SKU
@@ -228,20 +296,24 @@ export const FrameInventoryView: React.FC = () => {
 
                   {/* Actions */}
                   <td className="py-3 px-4 text-right space-x-1">
-                    <button
-                      onClick={() => setEditingFrame(frame)}
-                      className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                      title="Edit Frame"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => deleteFrame(frame.sku)}
-                      className="p-1 text-rose-600 hover:bg-rose-50 rounded"
-                      title="Delete Frame"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {hasPermission('Frames', 'edit') && (
+                      <button
+                        onClick={() => checkAndExecuteAction('Frames', 'edit', () => setEditingFrame(frame), 'Edit Frame')}
+                        className="p-1 text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                        title="Edit Frame"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {hasPermission('Frames', 'delete') && (
+                      <button
+                        onClick={() => handleDeleteFrame(frame.sku)}
+                        className="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                        title="Delete Frame"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </td>
 
                 </tr>
@@ -379,11 +451,8 @@ export const FrameInventoryView: React.FC = () => {
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  saveFrame(editingFrame);
-                  setEditingFrame(null);
-                }}
-                className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold shadow-xs"
+                onClick={handleSaveFrame}
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold shadow-xs cursor-pointer"
               >
                 Save Frame
               </button>

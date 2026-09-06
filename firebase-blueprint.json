@@ -290,6 +290,87 @@
         "read": "request.auth != null",
         "write": "request.auth != null"
       }
+    },
+    "customer_powers": {
+      "title": "Customer Power Records",
+      "description": "Historical refraction and prescription power measurements",
+      "fields": {
+        "powerId": { "type": "string", "description": "Unique Power Record ID" },
+        "customerId": { "type": "string", "description": "Referenced customer ID" },
+        "mrd": { "type": "string", "description": "Referenced patient MRD" },
+        "date": { "type": "string", "description": "Measurement date" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "whatsapp_templates": {
+      "title": "WhatsApp Message Templates",
+      "description": "Pre-configured messaging templates for patient communications",
+      "fields": {
+        "id": { "type": "string", "description": "Template ID" },
+        "title": { "type": "string", "description": "Template Title" },
+        "content": { "type": "string", "description": "Message text" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "crm_leads": {
+      "title": "CRM Leads",
+      "description": "Inquiry tracking and optical lead management",
+      "fields": {
+        "id": { "type": "string", "description": "Lead ID" },
+        "name": { "type": "string", "description": "Lead Name" },
+        "mobile": { "type": "string", "description": "Mobile number" },
+        "status": { "type": "string", "description": "Lead status" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "marketing_campaigns": {
+      "title": "Marketing Campaigns",
+      "description": "Broadcasts, offers and automated outreach campaigns",
+      "fields": {
+        "id": { "type": "string", "description": "Campaign ID" },
+        "name": { "type": "string", "description": "Campaign Name" },
+        "status": { "type": "string", "description": "Status" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "marketing_offers": {
+      "title": "Marketing Offers & Promotions",
+      "description": "Discounts, seasonal festive vouchers and promo codes",
+      "fields": {
+        "id": { "type": "string", "description": "Offer ID" },
+        "title": { "type": "string", "description": "Offer Title" },
+        "code": { "type": "string", "description": "Promo Code" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "lens_returns": {
+      "title": "Lens Returns",
+      "description": "Breakage, lab defect and vendor lens returns",
+      "fields": {
+        "id": { "type": "string", "description": "Return ID" },
+        "lensCode": { "type": "string", "description": "Lens Code" },
+        "quantity": { "type": "number", "description": "Quantity" },
+        "reason": { "type": "string", "description": "Return reason" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
     }
   }
 }

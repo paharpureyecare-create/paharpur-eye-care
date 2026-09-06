@@ -708,8 +708,8 @@ export const UserManagementPage: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    userAuditLogs.slice(0, 30).map(log => (
-                      <tr key={log.id} className="hover:bg-slate-50/80">
+                    userAuditLogs.slice(0, 30).map((log, index) => (
+                      <tr key={`${log.id || 'log'}-${index}`} className="hover:bg-slate-50/80">
                         <td className="py-2.5 px-4 whitespace-nowrap text-slate-500 text-[11px]">
                           {log.date} {log.time}
                         </td>

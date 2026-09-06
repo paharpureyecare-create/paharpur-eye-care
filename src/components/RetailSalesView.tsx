@@ -12,11 +12,12 @@ import {
   DollarSign,
   Trash2,
   CheckCircle,
-  Tag
+  Tag,
+  Download
 } from 'lucide-react';
 
 export const RetailSalesView: React.FC = () => {
-  const { retailSales, setQuickModal, setPrintModalData } = useErp();
+  const { retailSales, setQuickModal, setPrintModalData, showToast, hasPermission, checkAndExecuteAction } = useErp();
   const [search, setSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState<string>('All');
 
@@ -41,10 +42,34 @@ export const RetailSalesView: React.FC = () => {
   const totalDueAmount = retailSales.reduce((acc, s) => acc + (s.due || 0), 0);
 
   const handlePrint = (sale: RetailSale) => {
-    setPrintModalData({
-      type: 'invoice',
-      data: sale
-    });
+    checkAndExecuteAction('Sales', 'print', () => {
+      setPrintModalData({
+        type: 'invoice',
+        data: sale
+      });
+    }, 'Print Retail Bill');
+  };
+
+  const handleExportSales = () => {
+    checkAndExecuteAction('Sales', 'export', () => {
+      const headers = ['InvoiceNo,CustomerName,MRD,Mobile,Date,GrandTotal,Paid,Due,PaymentMode'];
+      const rows = filtered.map(s => `"${s.invoiceNumber || (s as any).invoiceNo}","${s.customerName}","${s.mrdOrCustomerId || ''}","${s.mobile || ''}","${s.date}",${s.grandTotal || (s as any).netTotal || 0},${s.paid || 0},${s.due || 0},"${s.paymentMode || (s as any).paymentMethod || 'Cash'}"`);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `retail_sales_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`Exported ${filtered.length} sales invoices successfully`, 'success');
+    }, 'Export Sales Invoices');
+  };
+
+  const handlePrintSalesList = () => {
+    checkAndExecuteAction('Sales', 'print', () => {
+      window.print();
+    }, 'Print Sales List');
   };
 
   return (
@@ -67,14 +92,40 @@ export const RetailSalesView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          id="btn-new-retail-pos"
-          onClick={() => setQuickModal('new-sale')}
-          className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-all hover:scale-105 self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          + New Counter Sale (POS)
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {hasPermission('Sales', 'export') && (
+            <button
+              id="btn-export-sales"
+              onClick={handleExportSales}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors border border-slate-200"
+              title="Export Sales to CSV"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+            </button>
+          )}
+
+          {hasPermission('Sales', 'print') && (
+            <button
+              id="btn-print-sales-list"
+              onClick={handlePrintSalesList}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors border border-slate-200"
+              title="Print Sales List"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Print
+            </button>
+          )}
+
+          <button
+            id="btn-new-retail-pos"
+            onClick={() => checkAndExecuteAction('Sales', 'create', () => setQuickModal('new-sale'), 'New Counter Sale')}
+            className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-all hover:scale-105"
+          >
+            <Plus className="w-4 h-4" />
+            + New Counter Sale (POS)
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -217,14 +268,16 @@ export const RetailSalesView: React.FC = () => {
 
                     {/* Actions */}
                     <td className="py-3.5 px-4 text-right">
-                      <button
-                        onClick={() => handlePrint(sale)}
-                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold flex items-center gap-1 ml-auto transition-colors"
-                        title="Print Invoice"
-                      >
-                        <Printer className="w-3.5 h-3.5 text-teal-600" />
-                        Print Bill
-                      </button>
+                      {hasPermission('Sales', 'print') && (
+                        <button
+                          onClick={() => handlePrint(sale)}
+                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold flex items-center gap-1 ml-auto transition-colors cursor-pointer"
+                          title="Print Invoice"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-teal-600" />
+                          Print Bill
+                        </button>
+                      )}
                     </td>
 
                   </tr>

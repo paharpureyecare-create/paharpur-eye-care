@@ -351,7 +351,7 @@ export const AuditLogPage: React.FC = () => {
                   const displayTime = log.time || new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
                   return (
-                    <React.Fragment key={log.id}>
+                    <React.Fragment key={`${log.id || 'log'}-${index}`}>
                       <tr className={`hover:bg-teal-50/20 transition-colors ${isExpanded ? 'bg-teal-50/30' : ''}`}>
                         {/* Index */}
                         <td className="py-3 px-4 text-center font-mono text-slate-400 font-semibold text-[11px]">
