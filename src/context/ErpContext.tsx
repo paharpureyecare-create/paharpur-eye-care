@@ -1831,6 +1831,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       registrationDate: new Date().toISOString().split('T')[0]
     };
     setPatients(prev => [newPatient, ...prev]);
+    persistToCloud('patients', mrd, newPatient);
 
     // Also register in Customer database if not present
     const existingCust = customers.find(c => c.mobile === newPatient.mobile);
@@ -1849,6 +1850,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         segment: 'New Patient'
       };
       setCustomers(prev => [newCust, ...prev]);
+      persistToCloud('customers', newCust.customerId, newCust);
     }
 
     addAuditLog('CREATE', 'Patients', mrd, `Registered new patient: ${newPatient.name} (${mrd})`, 'None (New Record)', `MRD: ${mrd}, Name: ${newPatient.name}, Mobile: ${newPatient.mobile}`);
@@ -1885,11 +1887,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Update in-place in patients
     setPatients(prev => prev.map(p => (p.mrd === updatedPatient.mrd ? updatedPatient : p)));
+    persistToCloud('patients', updatedPatient.mrd, updatedPatient);
 
     // Sync with customer record
     setCustomers(prev => prev.map(c => {
       if (c.mrd === updatedPatient.mrd || c.mobile === updatedPatient.mobile) {
-        return {
+        const updatedCust = {
           ...c,
           name: updatedPatient.name,
           mobile: updatedPatient.mobile,
@@ -1901,6 +1904,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           fatherName: updatedPatient.fatherHusbandName || updatedPatient.fatherName || c.fatherName,
           email: updatedPatient.email || c.email
         };
+        persistToCloud('customers', updatedCust.customerId, updatedCust);
+        return updatedCust;
       }
       return c;
     }));
@@ -1908,7 +1913,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Update in appointments for consistency
     setAppointments(prev => prev.map(a => {
       if (a.mrd === updatedPatient.mrd) {
-        return {
+        const updatedApt = {
           ...a,
           patientName: updatedPatient.name,
           mobile: updatedPatient.mobile,
@@ -1919,6 +1924,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           address: updatedPatient.address,
           district: updatedPatient.district
         };
+        persistToCloud('appointments', updatedApt.id, updatedApt);
+        return updatedApt;
       }
       return a;
     }));
@@ -1939,7 +1946,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const archivePatient = (mrd: string, reason?: string) => {
     const p = patients.find(pt => pt.mrd === mrd);
     if (!p) return;
-    setPatients(prev => prev.map(pt => pt.mrd === mrd ? { ...pt, status: 'Archived', isArchived: true, archivedAt: new Date().toISOString(), archivedReason: reason || 'Archived by Admin' } : pt));
+    const updated = { ...p, status: 'Archived', isArchived: true, archivedAt: new Date().toISOString(), archivedReason: reason || 'Archived by Admin' } as Patient;
+    setPatients(prev => prev.map(pt => pt.mrd === mrd ? updated : pt));
+    persistToCloud('patients', mrd, updated);
     addAuditLog('ARCHIVE', 'Patients', mrd, `Archived patient ${p.name} (${mrd})`, 'Status: Active', `Status: Archived (${reason || 'Standard Archive'})`);
     showToast(`Patient ${p.name} (${mrd}) archived`, 'warning');
   };
@@ -1947,7 +1956,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const restorePatient = (mrd: string) => {
     const p = patients.find(pt => pt.mrd === mrd);
     if (!p) return;
-    setPatients(prev => prev.map(pt => pt.mrd === mrd ? { ...pt, status: 'Regular', isArchived: false, archivedAt: undefined, archivedReason: undefined } : pt));
+    const updated = { ...p, status: 'Regular', isArchived: false, archivedAt: undefined, archivedReason: undefined } as Patient;
+    setPatients(prev => prev.map(pt => pt.mrd === mrd ? updated : pt));
+    persistToCloud('patients', mrd, updated);
     addAuditLog('RESTORE', 'Patients', mrd, `Restored patient ${p.name} (${mrd}) to active records`, 'Status: Archived', 'Status: Active');
     showToast(`Patient ${p.name} restored to active list`, 'success');
   };
@@ -1956,6 +1967,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const p = patients.find(pt => pt.mrd === mrd);
     if (!p) return;
     setPatients(prev => prev.filter(pt => pt.mrd !== mrd));
+    deleteFromCloud('patients', mrd);
     addAuditLog('DELETE', 'Patients', mrd, `Permanently deleted patient record: ${p.name} (${mrd})`, `Name: ${p.name}, Mobile: ${p.mobile}`, 'Record Deleted');
     showToast(`Patient ${p.name} permanently deleted`, 'info');
   };
@@ -1986,6 +1998,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         medicalHistory: data.medicalHistory && data.medicalHistory.length > 0 ? data.medicalHistory : existingPatient.medicalHistory
       };
       setPatients(prev => prev.map(p => (p.mrd === existingPatient.mrd ? updatedPatient : p)));
+      persistToCloud('patients', existingPatient.mrd, updatedPatient);
     } else {
       // Create new Patient record automatically
       const nextSeq = 1000 + patients.length + 1;
@@ -2012,6 +2025,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notes: data.notes || 'Registered during appointment booking'
       };
       setPatients(prev => [newPatient, ...prev]);
+      persistToCloud('patients', newPatient.mrd, newPatient);
 
       // Register Customer CRM record
       const newCust: Customer = {
@@ -2032,6 +2046,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         segment: 'New Patient'
       };
       setCustomers(prev => [newCust, ...prev]);
+      persistToCloud('customers', newCust.customerId, newCust);
     }
 
     const nextId = `APT-2026-0${500 + appointments.length + 1}`;
@@ -2070,6 +2085,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setAppointments(prev => [newApt, ...prev]);
+    persistToCloud('appointments', nextId, newApt);
     addAuditLog(
       'CREATE',
       'Appointments',
@@ -2147,12 +2163,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Update in-place in appointments array (strictly no duplicate!)
     setAppointments(prev => prev.map(a => (a.id === merged.id ? merged : a)));
+    persistToCloud('appointments', merged.id, merged);
 
     // Sync patient info if changed
     if (merged.mrd) {
       setPatients(prev => prev.map(p => {
         if (p.mrd === merged.mrd) {
-          return {
+          const updatedPatient = {
             ...p,
             name: merged.patientName || p.name,
             mobile: merged.mobile || p.mobile,
@@ -2167,6 +2184,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             occupation: merged.occupation || p.occupation,
             referredBy: merged.referredBy || p.referredBy
           };
+          persistToCloud('patients', updatedPatient.mrd, updatedPatient);
+          return updatedPatient;
         }
         return p;
       }));
@@ -2202,6 +2221,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setAppointments(prev => prev.map(a => (a.id === id ? merged : a)));
+    persistToCloud('appointments', id, merged);
 
     addAuditLog(
       'CANCEL',
@@ -2217,7 +2237,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const archiveAppointment = (id: string, reason?: string) => {
     const existing = appointments.find(a => a.id === id);
     if (!existing) return;
-    setAppointments(prev => prev.map(a => (a.id === id ? { ...a, isArchived: true, archivedAt: new Date().toISOString(), archivedReason: reason || 'Archived' } : a)));
+    const merged = { ...existing, isArchived: true, archivedAt: new Date().toISOString(), archivedReason: reason || 'Archived' };
+    setAppointments(prev => prev.map(a => (a.id === id ? merged : a)));
+    persistToCloud('appointments', id, merged);
     addAuditLog('ARCHIVE', 'Appointments', id, `Archived appointment ${id} for ${existing.patientName}`, 'Status: Active', `Status: Archived (${reason || 'Archived'})`);
     showToast(`Appointment ${id} archived`, 'warning');
   };
@@ -2225,7 +2247,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const restoreAppointment = (id: string) => {
     const existing = appointments.find(a => a.id === id);
     if (!existing) return;
-    setAppointments(prev => prev.map(a => (a.id === id ? { ...a, isArchived: false, archivedAt: undefined, archivedReason: undefined } : a)));
+    const merged = { ...existing, isArchived: false, archivedAt: undefined, archivedReason: undefined };
+    setAppointments(prev => prev.map(a => (a.id === id ? merged : a)));
+    persistToCloud('appointments', id, merged);
     addAuditLog('RESTORE', 'Appointments', id, `Restored appointment ${id} for ${existing.patientName}`, 'Status: Archived', 'Status: Active');
     showToast(`Appointment ${id} restored to active records`, 'success');
   };
@@ -2234,6 +2258,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const existing = appointments.find(a => a.id === id);
     if (!existing) return;
     setAppointments(prev => prev.filter(a => a.id !== id));
+    deleteFromCloud('appointments', id);
     addAuditLog('DELETE', 'Appointments', id, `Permanently deleted appointment ${id} for ${existing.patientName}`, `Patient: ${existing.patientName}, Date: ${existing.date}`, 'Record Deleted');
     showToast(`Appointment ${id} deleted permanently`, 'info');
   };
@@ -2260,6 +2285,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setAppointments(prev => prev.map(a => (a.id === id ? merged : a)));
+    persistToCloud('appointments', id, merged);
 
     // Record payment in payments ledger
     const nextPaySeq = 9500 + payments.length + 1;
@@ -2277,6 +2303,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notes: `Consultation fee collection for ${existing.id}`
     };
     setPayments(prev => [paymentRec, ...prev]);
+    persistToCloud('payments', paymentRec.paymentId, paymentRec);
 
     addAuditLog(
       'PAYMENT',
@@ -2414,7 +2441,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // 4. Update Appointment Status
   const updateAppointmentStatus = (id: string, status: AppointmentStatus) => {
-    setAppointments(prev => prev.map(a => (a.id === id ? { ...a, status } : a)));
+    setAppointments(prev => prev.map(a => {
+      if (a.id === id) {
+        const updated = { ...a, status, updatedAt: new Date().toISOString() };
+        persistToCloud('appointments', id, updated);
+        return updated;
+      }
+      return a;
+    }));
     addAuditLog('UPDATE_APPOINTMENT_STATUS', 'Appointments', id, `Status changed to ${status}`);
     showToast(`Appointment status updated to ${status}`);
   };
@@ -2516,6 +2550,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
 
       setVisits(prev => prev.map(v => (v.visitId === draft.editingVisitId ? updatedVisit : v)));
+      persistToCloud('clinical_visits', draft.editingVisitId, updatedVisit);
       addAuditLog('UPDATE_CLINICAL_VISIT' as any, 'Clinical', draft.editingVisitId, `Updated clinical examination & Rx for ${draft.patientName} (${draft.mrd})`);
       showToast(`Visit ${draft.editingVisitId} updated successfully!`);
       clearClinicalDraft();
@@ -2561,6 +2596,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setVisits(prev => [newVisit, ...prev]);
+    persistToCloud('clinical_visits', visitId, newVisit);
 
     // If linked to appointment, mark completed
     if (draft.appointmentId) {
@@ -2569,25 +2605,31 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Update patient status to Regular / Follow-up
     setPatients(prev =>
-      prev.map(p =>
-        p.mrd === draft.mrd
-          ? { ...p, status: 'Regular' }
-          : p
-      )
+      prev.map(p => {
+        if (p.mrd === draft.mrd) {
+          const updated = { ...p, status: 'Regular' };
+          persistToCloud('patients', p.mrd, updated);
+          return updated;
+        }
+        return p;
+      })
     );
 
     // Update Customer CRM record
     setCustomers(prev =>
-      prev.map(c =>
-        c.mobile === draft.mobile || (c.name || '').toLowerCase() === (draft.patientName || '').toLowerCase()
-          ? {
-              ...c,
-              lastContact: newVisit.visitDate,
-              nextAction: followUpDateStr ? `Follow-up due on ${followUpDateStr}` : 'Routine check',
-              segment: 'Follow-up Due'
-            }
-          : c
-      )
+      prev.map(c => {
+        if (c.mobile === draft.mobile || (c.name || '').toLowerCase() === (draft.patientName || '').toLowerCase()) {
+          const updated = {
+            ...c,
+            lastContact: newVisit.visitDate,
+            nextAction: followUpDateStr ? `Follow-up due on ${followUpDateStr}` : 'Routine check',
+            segment: 'Follow-up Due'
+          };
+          persistToCloud('customers', c.customerId, updated);
+          return updated;
+        }
+        return c;
+      })
     );
 
     addAuditLog('SAVE_CLINICAL_VISIT', 'Clinical', visitId, `Saved clinical examination & Rx for ${draft.patientName} (${draft.mrd})`);
@@ -2601,6 +2643,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateClinicalVisit = (updatedVisit: ClinicalVisit) => {
     setVisits(prev => prev.map(v => (v.visitId === updatedVisit.visitId ? updatedVisit : v)));
+    persistToCloud('clinical_visits', updatedVisit.visitId, updatedVisit);
     addAuditLog('UPDATE_CLINICAL_VISIT' as any, 'Clinical', updatedVisit.visitId, `Updated clinical visit for ${updatedVisit.patientName} (${updatedVisit.mrd})`);
     showToast(`Visit ${updatedVisit.visitId} updated successfully!`);
   };
@@ -2608,6 +2651,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteClinicalVisit = (visitId: string) => {
     const target = visits.find(v => v.visitId === visitId);
     setVisits(prev => prev.filter(v => v.visitId !== visitId));
+    deleteFromCloud('clinical_visits', visitId);
     addAuditLog('DELETE_CLINICAL_VISIT' as any, 'Clinical', visitId, `Deleted clinical visit for ${target?.patientName || ''} (${visitId})`);
     showToast(`Visit record deleted`, 'info');
   };
@@ -2681,6 +2725,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setSpectacleOrders(prev => [newOrder, ...prev]);
+    persistToCloud('spectacle_orders', orderId, newOrder);
 
     // 1. Decrement Frame Stock (Only if not manual frame and frameSku is selected)
     if (!newOrder.isManualFrame && newOrder.frameSku) {
@@ -3124,6 +3169,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSpectacleOrders(prev =>
       prev.map(o => (o.orderId === updatedOrder.orderId ? fullUpdatedOrder : o))
     );
+    persistToCloud('spectacle_orders', updatedOrder.orderId, fullUpdatedOrder);
 
     // If options.updateCustomerProfile or customerProfileData provided, update root Customer profile without touching historical invoices
     const profileData = updatedOrder.customerProfileData;
@@ -3131,7 +3177,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCustomers(prev =>
         prev.map(c => {
           if (c.customerId === updatedOrder.customerId || c.mobile === updatedOrder.mobile || (updatedOrder.mrd && c.mrd === updatedOrder.mrd)) {
-            return {
+            const updatedCust = {
               ...c,
               name: updatedOrder.customerName || c.name,
               mobile: updatedOrder.mobile || c.mobile,
@@ -3159,6 +3205,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               altMobile: profileData?.altMobile || profileData?.emergencyContact || c.altMobile,
               notes: profileData?.notes !== undefined ? profileData.notes : c.notes
             };
+            persistToCloud('customers', updatedCust.customerId, updatedCust);
+            return updatedCust;
           }
           return c;
         })
@@ -3186,9 +3234,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const nextPaid = (ord.advance || ord.paid || 0) + amount;
     const nextDue = Math.max(0, ord.total - nextPaid);
 
+    const updatedOrder = { ...ord, advance: nextPaid, paid: nextPaid, due: nextDue };
     setSpectacleOrders(prev =>
-      prev.map(o => (o.orderId === orderId ? { ...o, advance: nextPaid, paid: nextPaid, due: nextDue } : o))
+      prev.map(o => (o.orderId === orderId ? updatedOrder : o))
     );
+    persistToCloud('spectacle_orders', orderId, updatedOrder);
 
     const payRecord: PaymentRecord = {
       paymentId: `PAY-2026-${9500 + payments.length + 1}`,
@@ -3203,14 +3253,18 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notes: notes || `Installment payment for Spectacle Order ${orderId}`
     };
     setPayments(prev => [payRecord, ...prev]);
+    persistToCloud('payments', payRecord.paymentId, payRecord);
 
     // Update Customer outstanding due
     setCustomers(prev =>
-      prev.map(c =>
-        (c.customerId === ord.customerId || c.mobile === ord.mobile || (ord.mrd && c.mrd === ord.mrd))
-          ? { ...c, outstandingDue: Math.max(0, (c.outstandingDue || 0) - amount) }
-          : c
-      )
+      prev.map(c => {
+        if (c.customerId === ord.customerId || c.mobile === ord.mobile || (ord.mrd && c.mrd === ord.mrd)) {
+          const updatedCust = { ...c, outstandingDue: Math.max(0, (c.outstandingDue || 0) - amount) };
+          persistToCloud('customers', updatedCust.customerId, updatedCust);
+          return updatedCust;
+        }
+        return c;
+      })
     );
 
     addAuditLog('COLLECT_ORDER_PAYMENT', 'Billing', orderId, `Collected ₹${amount} for Order ${orderId} from ${ord.customerName} via ${paymentMode}`);
@@ -3219,7 +3273,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // 10. Update Spectacle Order Status
   const updateSpectacleOrderStatus = (orderId: string, status: SpectacleOrderStatus) => {
-    setSpectacleOrders(prev => prev.map(o => (o.orderId === orderId ? { ...o, status } : o)));
+    setSpectacleOrders(prev => prev.map(o => {
+      if (o.orderId === orderId) {
+        const updated = { ...o, status, updatedAt: new Date().toISOString() };
+        persistToCloud('spectacle_orders', orderId, updated);
+        return updated;
+      }
+      return o;
+    }));
     addAuditLog('UPDATE_ORDER_STATUS', 'Spectacles', orderId, `Order status changed to ${status}`);
     showToast(`Order ${orderId} marked as ${status}`);
   };
@@ -3237,6 +3298,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setRetailSales(prev => [newSale, ...prev]);
+    persistToCloud('retail_sales', invoiceNum, newSale);
 
     // Update central inventory for each sold item
     saleData.items.forEach(item => {
@@ -3486,13 +3548,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (matchedOrder) {
       const nextAdvance = matchedOrder.advance + amount;
       const nextDue = Math.max(0, matchedOrder.total - nextAdvance);
+      const updatedOrder = { ...matchedOrder, advance: nextAdvance, due: nextDue };
       setSpectacleOrders(prev =>
         prev.map(o =>
           o.orderId === invoiceOrOrderId
-            ? { ...o, advance: nextAdvance, due: nextDue }
+            ? updatedOrder
             : o
         )
       );
+      persistToCloud('spectacle_orders', invoiceOrOrderId, updatedOrder);
 
       const payRecord: PaymentRecord = {
         paymentId: payId,
@@ -3508,6 +3572,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notes: notes || `Collected due for Spectacle Order ${invoiceOrOrderId}`
       };
       setPayments(prev => [payRecord, ...prev]);
+      persistToCloud('payments', payRecord.paymentId, payRecord);
       addAuditLog('COLLECT_DUE', 'Billing', invoiceOrOrderId, `Collected ₹${amount} due for ${invoiceOrOrderId} from ${matchedOrder.customerName}`);
       showToast(`Due payment of ₹${amount} recorded for ${invoiceOrOrderId}!`, 'success');
       return;
@@ -3518,18 +3583,20 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (matchedSale) {
       const nextPaid = matchedSale.paid + amount;
       const nextDue = Math.max(0, matchedSale.grandTotal - nextPaid);
+      const updatedSale = {
+        ...matchedSale,
+        paid: nextPaid,
+        due: nextDue,
+        status: (nextDue === 0 ? 'Paid' : 'Partial') as any
+      };
       setRetailSales(prev =>
         prev.map(inv =>
           inv.invoiceNumber === invoiceOrOrderId
-            ? {
-                ...inv,
-                paid: nextPaid,
-                due: nextDue,
-                status: nextDue === 0 ? 'Paid' : 'Partial'
-              }
+            ? updatedSale
             : inv
         )
       );
+      persistToCloud('retail_sales', invoiceOrOrderId, updatedSale);
 
       const payRecord: PaymentRecord = {
         paymentId: payId,
@@ -3545,6 +3612,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notes: notes || `Collected due for invoice ${invoiceOrOrderId}`
       };
       setPayments(prev => [payRecord, ...prev]);
+      persistToCloud('payments', payRecord.paymentId, payRecord);
       addAuditLog('COLLECT_DUE', 'Billing', invoiceOrOrderId, `Collected ₹${amount} due for ${invoiceOrOrderId} from ${matchedSale.customerName}`);
       showToast(`Due payment of ₹${amount} recorded for ${invoiceOrOrderId}!`, 'success');
       return;
@@ -3641,12 +3709,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [frame, ...prev];
     });
+    persistToCloud('frames', frame.sku, frame);
     addAuditLog('SAVE_FRAME', 'Inventory', frame.sku, `Updated/Saved Frame SKU: ${frame.sku}`);
     showToast(`Frame ${frame.sku} saved!`);
   };
 
   const deleteFrame = (sku: string) => {
     setFrames(prev => prev.filter(f => f.sku !== sku));
+    deleteFromCloud('frames', sku);
     addAuditLog('DELETE_FRAME', 'Inventory', sku, `Deleted Frame SKU: ${sku}`);
     showToast(`Frame ${sku} deleted`);
   };
@@ -3661,12 +3731,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [lens, ...prev];
     });
+    persistToCloud('lenses', lens.lensCode, lens);
     addAuditLog('SAVE_LENS', 'Inventory', lens.lensCode, `Updated/Saved Lens: ${lens.lensCode}`);
     showToast(`Lens ${lens.lensCode} saved!`);
   };
 
   const deleteLens = (lensCode: string) => {
     setLenses(prev => prev.filter(l => l.lensCode !== lensCode));
+    deleteFromCloud('lenses', lensCode);
     addAuditLog('DELETE_LENS', 'Inventory', lensCode, `Deleted Lens: ${lensCode}`);
     showToast(`Lens ${lensCode} deleted`);
   };
@@ -3679,6 +3751,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString()
     };
     setLensPurchases(prev => [newRecord, ...prev]);
+    persistToCloud('lens_purchases', id, newRecord);
 
     setLenses(prev => {
       const exists = prev.some(l => l.lensCode === purchaseData.lensCode);
@@ -3687,14 +3760,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (l.lensCode === purchaseData.lensCode) {
             const nextStock = l.currentStock + purchaseData.quantity;
             const nextStatus = nextStock === 0 ? 'Out of Stock' : nextStock <= l.reorderLevel ? 'Low Stock' : 'Available';
-            return {
+            const updated = {
               ...l,
               currentStock: nextStock,
               purchaseRate: purchaseData.purchaseRate || l.purchaseRate,
               rackLocation: purchaseData.rack || l.rackLocation,
               supplier: purchaseData.supplier || l.supplier,
-              status: nextStatus
+              status: nextStatus as any
             };
+            persistToCloud('lenses', l.lensCode, updated);
+            return updated;
           }
           return l;
         });
@@ -3726,6 +3801,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           supplier: purchaseData.supplier,
           status: 'Available'
         };
+        persistToCloud('lenses', newLens.lensCode, newLens);
         return [newLens, ...prev];
       }
     });
@@ -3759,6 +3835,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return match ? { ...l, ...match } : l;
       });
       return [...newItems, ...updated];
+    });
+    generatedLenses.forEach(g => {
+      persistToCloud('lenses', g.lensCode, g);
     });
     addAuditLog('SAVE_LENS', 'Inventory', `BATCH-${generatedLenses.length}`, `Generated / updated batch of ${generatedLenses.length} lens power variants`);
     showToast(`Generated ${generatedLenses.length} lens power variants successfully!`);
@@ -3813,12 +3892,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [med, ...prev];
     });
+    persistToCloud('medicines', med.id, med);
     addAuditLog('SAVE_MEDICINE', 'Clinical', med.id, `Saved medicine: ${med.name}`);
     showToast(`Medicine ${med.name} saved!`);
   };
 
   const deleteMedicine = (id: string) => {
     setMedicines(prev => prev.filter(m => m.id !== id));
+    deleteFromCloud('medicines', id);
     addAuditLog('DELETE_MEDICINE', 'Clinical', id, `Deleted medicine ${id}`);
     showToast(`Medicine deleted`);
   };
@@ -3833,6 +3914,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [sup, ...prev];
     });
+    persistToCloud('suppliers', sup.supplierId, sup);
     showToast(`Supplier ${sup.company} saved!`);
   };
 
@@ -3846,6 +3928,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [dealer, ...prev];
     });
+    persistToCloud('dealers', dealer.dealerId, dealer);
     addAuditLog('SAVE_DEALER', 'Inventory', dealer.dealerId, `Saved wholesale dealer profile: ${dealer.shopName} (${dealer.ownerName})`);
     showToast(`Dealer ${dealer.shopName} saved!`);
   };
@@ -3860,6 +3943,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [customer, ...prev];
     });
+    persistToCloud('customers', customer.customerId, customer);
     addAuditLog('SAVE_CUSTOMER', 'Patients', customer.customerId, `Saved Customer Profile: ${customer.name} (Mobile: ${customer.mobile})`);
     showToast(`Customer ${customer.name} profile updated!`);
   };
@@ -3867,7 +3951,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const archiveCustomer = (customerId: string, reason?: string) => {
     const c = customers.find(cust => cust.customerId === customerId);
     if (!c) return;
-    setCustomers(prev => prev.map(cust => cust.customerId === customerId ? { ...cust, isArchived: true, archivedAt: new Date().toISOString(), archivedReason: reason || 'Archived' } : cust));
+    const updated = { ...c, isArchived: true, archivedAt: new Date().toISOString(), archivedReason: reason || 'Archived' };
+    setCustomers(prev => prev.map(cust => cust.customerId === customerId ? updated : cust));
+    persistToCloud('customers', customerId, updated);
     addAuditLog('ARCHIVE', 'Customer', customerId, `Archived customer ${c.name} (${customerId})`, 'Status: Active', `Status: Archived (${reason || 'Archived'})`);
     showToast(`Customer ${c.name} archived`, 'warning');
   };
@@ -3875,7 +3961,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const restoreCustomer = (customerId: string) => {
     const c = customers.find(cust => cust.customerId === customerId);
     if (!c) return;
-    setCustomers(prev => prev.map(cust => cust.customerId === customerId ? { ...cust, isArchived: false, archivedAt: undefined, archivedReason: undefined } : cust));
+    const updated = { ...c, isArchived: false, archivedAt: undefined, archivedReason: undefined };
+    setCustomers(prev => prev.map(cust => cust.customerId === customerId ? updated : cust));
+    persistToCloud('customers', customerId, updated);
     addAuditLog('RESTORE', 'Customer', customerId, `Restored customer ${c.name} (${customerId})`, 'Status: Archived', 'Status: Active');
     showToast(`Customer ${c.name} restored to active list`, 'success');
   };
@@ -3884,6 +3972,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const c = customers.find(cust => cust.customerId === customerId);
     if (!c) return;
     setCustomers(prev => prev.filter(cust => cust.customerId !== customerId));
+    deleteFromCloud('customers', customerId);
     addAuditLog('DELETE', 'Customer', customerId, `Permanently deleted customer profile: ${c.name} (${customerId})`, `Name: ${c.name}, Mobile: ${c.mobile}`, 'Record Deleted');
     showToast(`Customer ${c.name} deleted permanently`, 'info');
   };
@@ -3891,7 +3980,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const archiveSpectacleOrder = (orderId: string, reason?: string) => {
     const ord = spectacleOrders.find(o => o.orderId === orderId);
     if (!ord) return;
-    setSpectacleOrders(prev => prev.map(o => o.orderId === orderId ? { ...o, isArchived: true, archivedAt: new Date().toISOString(), archivedReason: reason || 'Archived' } : o));
+    const updated = { ...ord, isArchived: true, archivedAt: new Date().toISOString(), archivedReason: reason || 'Archived' };
+    setSpectacleOrders(prev => prev.map(o => o.orderId === orderId ? updated : o));
+    persistToCloud('spectacle_orders', orderId, updated);
     addAuditLog('ARCHIVE', 'Spectacles', orderId, `Archived spectacle order ${orderId} (${ord.customerName})`, 'Status: Active', `Status: Archived (${reason || 'Archived'})`);
     showToast(`Order ${orderId} archived`, 'warning');
   };
@@ -3899,7 +3990,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const restoreSpectacleOrder = (orderId: string) => {
     const ord = spectacleOrders.find(o => o.orderId === orderId);
     if (!ord) return;
-    setSpectacleOrders(prev => prev.map(o => o.orderId === orderId ? { ...o, isArchived: false, archivedAt: undefined, archivedReason: undefined } : o));
+    const updated = { ...ord, isArchived: false, archivedAt: undefined, archivedReason: undefined };
+    setSpectacleOrders(prev => prev.map(o => o.orderId === orderId ? updated : o));
+    persistToCloud('spectacle_orders', orderId, updated);
     addAuditLog('RESTORE', 'Spectacles', orderId, `Restored spectacle order ${orderId} (${ord.customerName})`, 'Status: Archived', 'Status: Active');
     showToast(`Order ${orderId} restored to active list`, 'success');
   };
@@ -4023,16 +4116,22 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (newLedgerEntries.length > 0) {
       setLoyaltyLogs(prev => [...newLedgerEntries, ...prev]);
       setCustomers(prev =>
-        prev.map(c =>
-          (c.customerId === ord.customerId || c.mobile === ord.mobile || (ord.mrd && c.mrd === ord.mrd))
-            ? { ...c, loyaltyPoints: nextCustomerPoints }
-            : c
-        )
+        prev.map(c => {
+          const isTarget = (c.customerId === ord.customerId || c.mobile === ord.mobile || (ord.mrd && c.mrd === ord.mrd));
+          if (isTarget) {
+            const updated = { ...c, loyaltyPoints: nextCustomerPoints };
+            persistToCloud('customers', c.customerId, updated);
+            return updated;
+          }
+          return c;
+        })
       );
       addAuditLog('LOYALTY_REFUND', 'Spectacles', orderId, `Cancelled order #${orderId}: Refunded ${totalRedeemedPoints} redeemed points, reversed ${totalEarnedPoints} earned points for ${ord.customerName}`);
     }
 
-    setSpectacleOrders(prev => prev.map(o => o.orderId === orderId ? { ...o, status: 'Cancelled', notes: reason ? `${o.notes || ''} [Cancelled: ${reason}]`.trim() : o.notes } : o));
+    const cancelledOrder = { ...ord, status: 'Cancelled' as const, notes: reason ? `${ord.notes || ''} [Cancelled: ${reason}]`.trim() : ord.notes };
+    setSpectacleOrders(prev => prev.map(o => o.orderId === orderId ? cancelledOrder : o));
+    persistToCloud('spectacle_orders', orderId, cancelledOrder);
     addAuditLog('CANCEL', 'Spectacles', orderId, `Cancelled spectacle order ${orderId} for ${ord.customerName}${restoreStock ? ' (Stock restored to inventory)' : ''}`, `Status: ${ord.status}`, `Status: Cancelled${reason ? ` (${reason})` : ''}`);
     showToast(`Order ${orderId} cancelled${restoreStock ? ' and stock restored' : ''}`, 'warning');
   };
@@ -4067,6 +4166,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setSpectacleOrders(prev => prev.filter(o => o.orderId !== orderId));
+    deleteFromCloud('spectacle_orders', orderId);
     addAuditLog('DELETE', 'Spectacles', orderId, `Permanently deleted spectacle order ${orderId} (${ord.customerName})`, `Total: ₹${ord.total}, Advance: ₹${ord.advance}`, 'Record Deleted');
     showToast(`Order ${orderId} deleted permanently`, 'info');
   };
@@ -4081,6 +4181,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [{ ...tpl, createdAt: new Date().toISOString() }, ...prev];
     });
+    persistToCloud('whatsapp_templates', tpl.id, tpl);
     addAuditLog('UPDATE', 'Settings', tpl.id, `Saved WhatsApp Template: ${tpl.name} (${tpl.category})`);
     showToast(`WhatsApp Template "${tpl.name}" saved!`);
   };
@@ -4088,12 +4189,20 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteTemplate = (id: string) => {
     const target = templates.find(t => t.id === id);
     setTemplates(prev => prev.filter(t => t.id !== id));
+    deleteFromCloud('whatsapp_templates', id);
     addAuditLog('DELETE', 'Settings', id, `Deleted WhatsApp Template: ${target?.name || id}`);
     showToast(`Template deleted`, 'info');
   };
 
   const toggleTemplateActive = (id: string) => {
-    setTemplates(prev => prev.map(t => t.id === id ? { ...t, active: !t.active } : t));
+    setTemplates(prev => prev.map(t => {
+      if (t.id === id) {
+        const updated = { ...t, active: !t.active };
+        persistToCloud('whatsapp_templates', id, updated);
+        return updated;
+      }
+      return t;
+    }));
   };
 
   const saveOffer = (offer: OfferPromotion) => {
@@ -4106,6 +4215,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [{ ...offer, createdAt: new Date().toISOString() }, ...prev];
     });
+    persistToCloud('marketing_offers', offer.id, offer);
     addAuditLog('UPDATE', 'Settings', offer.id, `Saved Offer/Promotion: ${offer.name}`);
     showToast(`Offer "${offer.name}" saved!`);
   };
@@ -4113,12 +4223,20 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteOffer = (id: string) => {
     const target = offers.find(o => o.id === id);
     setOffers(prev => prev.filter(o => o.id !== id));
+    deleteFromCloud('marketing_offers', id);
     addAuditLog('DELETE', 'Settings', id, `Deleted Offer: ${target?.name || id}`);
     showToast(`Offer removed`, 'info');
   };
 
   const toggleOfferStatus = (id: string) => {
-    setOffers(prev => prev.map(o => o.id === id ? { ...o, status: o.status === 'Active' ? 'Inactive' : 'Active' } : o));
+    setOffers(prev => prev.map(o => {
+      if (o.id === id) {
+        const updated = { ...o, status: (o.status === 'Active' ? 'Inactive' : 'Active') as any };
+        persistToCloud('marketing_offers', id, updated);
+        return updated;
+      }
+      return o;
+    }));
   };
 
   const logCommunication = (logData: Omit<CommunicationLog, 'id' | 'date' | 'time' | 'sentBy'>) => {
@@ -4131,6 +4249,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sentBy: role === 'Doctor' ? settings.doctorName : `${role} User`
     };
     setCommunicationLogs(prev => [newLog, ...prev]);
+    persistToCloud('communication_logs', newLog.id, newLog);
   };
 
   // Marketing Campaign Operations
@@ -4144,6 +4263,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [{ ...campaignData, createdAt: new Date().toISOString() }, ...prev];
     });
+    persistToCloud('marketing_campaigns', campaignData.id, campaignData);
     addAuditLog('UPDATE', 'Settings', campaignData.id, `Saved Marketing Campaign: "${campaignData.name}" (${campaignData.type})`);
     showToast(`Campaign "${campaignData.name}" saved successfully!`, 'success');
   };
@@ -4151,6 +4271,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteCampaign = (id: string) => {
     const target = campaigns.find(c => c.id === id);
     setCampaigns(prev => prev.filter(c => c.id !== id));
+    deleteFromCloud('marketing_campaigns', id);
     addAuditLog('DELETE', 'Settings', id, `Deleted Marketing Campaign: ${target?.name || id}`);
     showToast(`Campaign deleted`, 'info');
   };
@@ -4180,6 +4301,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString()
     };
     setCampaigns(prev => [cloned, ...prev]);
+    persistToCloud('marketing_campaigns', newId, cloned);
     addAuditLog('CREATE', 'Settings', newId, `Duplicated Marketing Campaign from ${id}: "${cloned.name}"`);
     showToast(`Campaign duplicated as "${cloned.name}"!`, 'success');
     return cloned;
@@ -4189,7 +4311,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCampaigns(prev => prev.map(c => {
       if (c.id === id) {
         const nextStatus: CampaignStatus = status || (c.status === 'Running' ? 'Paused' : 'Running');
-        return { ...c, status: nextStatus, updatedAt: new Date().toISOString() };
+        const updated = { ...c, status: nextStatus, updatedAt: new Date().toISOString() };
+        persistToCloud('marketing_campaigns', id, updated);
+        return updated;
       }
       return c;
     }));
@@ -4206,6 +4330,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [{ ...leadData, createdAt: new Date().toISOString() }, ...prev];
     });
+    persistToCloud('crm_leads', leadData.id, leadData);
     addAuditLog('UPDATE', 'Patients', leadData.id, `Saved Lead: ${leadData.name} (${leadData.stage})`);
     showToast(`Lead "${leadData.name}" updated!`);
   };
@@ -4213,6 +4338,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteLead = (id: string) => {
     const target = leads.find(l => l.id === id);
     setLeads(prev => prev.filter(l => l.id !== id));
+    deleteFromCloud('crm_leads', id);
     addAuditLog('DELETE', 'Patients', id, `Deleted Lead: ${target?.name || id}`);
     showToast(`Lead deleted`, 'info');
   };
@@ -4225,6 +4351,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let existing = customers.find(c => c.mobile === lead.mobile);
     if (existing) {
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: 'Purchased', convertedCustomerId: existing!.customerId } : l));
+      persistToCloud('crm_leads', leadId, { ...lead, stage: 'Purchased', convertedCustomerId: existing.customerId });
       showToast(`Lead linked with existing Customer ${existing.name} (${existing.customerId})`);
       return existing;
     }
@@ -4248,7 +4375,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setCustomers(prev => [newCust, ...prev]);
+    persistToCloud('customers', newCustomerId, newCust);
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: 'Purchased', convertedCustomerId: newCustomerId } : l));
+    persistToCloud('crm_leads', leadId, { ...lead, stage: 'Purchased', convertedCustomerId: newCustomerId });
     addAuditLog('CREATE', 'Patients', newCustomerId, `Converted Lead ${lead.name} (${leadId}) into Customer record ${newCustomerId}`);
     showToast(`Lead ${lead.name} converted to Customer (${newCustomerId})!`, 'success');
     return newCust;
@@ -4265,17 +4394,26 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [{ ...rule, createdAt: new Date().toISOString(), triggerCount: 0 }, ...prev];
     });
+    persistToCloud('automation_rules', rule.id, rule);
     addAuditLog('UPDATE', 'Settings', rule.id, `Saved Automation Rule: "${rule.name}"`);
     showToast(`Automation rule "${rule.name}" saved!`);
   };
 
   const toggleAutomationRule = (id: string) => {
-    setAutomationRules(prev => prev.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r));
+    setAutomationRules(prev => prev.map(r => {
+      if (r.id === id) {
+        const updated = { ...r, enabled: !r.enabled };
+        persistToCloud('automation_rules', id, updated);
+        return updated;
+      }
+      return r;
+    }));
     showToast(`Automation rule updated`);
   };
 
   const deleteAutomationRule = (id: string) => {
     setAutomationRules(prev => prev.filter(r => r.id !== id));
+    deleteFromCloud('automation_rules', id);
     showToast(`Automation rule removed`, 'info');
   };
 
@@ -4290,12 +4428,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [segment, ...prev];
     });
+    persistToCloud('custom_segments', segment.id, segment);
     addAuditLog('UPDATE', 'Settings', segment.id, `Saved Custom Segment: "${segment.name}"`);
     showToast(`Segment "${segment.name}" saved!`, 'success');
   };
 
   const deleteCustomSegment = (id: string) => {
     setCustomSegments(prev => prev.filter(s => s.id !== id));
+    deleteFromCloud('custom_segments', id);
     showToast(`Segment removed`, 'info');
   };
 
@@ -4304,7 +4444,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [customSegments]);
 
   const updateCustomerMarketingProfile = (customerId: string, data: Partial<Customer>) => {
-    setCustomers(prev => prev.map(c => c.customerId === customerId ? { ...c, ...data } : c));
+    setCustomers(prev => prev.map(c => {
+      if (c.customerId === customerId) {
+        const updated = { ...c, ...data };
+        persistToCloud('customers', customerId, updated);
+        return updated;
+      }
+      return c;
+    }));
     showToast(`Customer marketing profile updated!`);
   };
 
@@ -4340,6 +4487,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       powerId
     };
     setCustomerPowers(prev => [newRecord, ...prev]);
+    persistToCloud('customer_powers', powerId, newRecord);
     addAuditLog('ADD_CUSTOMER_POWER', 'Clinical', powerId, `Recorded power prescription for Customer ${record.customerId}`);
     showToast('Customer power history record added!');
     return newRecord;
@@ -4359,9 +4507,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       newPoints = points;
     }
 
+    const updatedCustomer = { ...cust, loyaltyPoints: newPoints };
     setCustomers(prev =>
-      prev.map(c => (c.customerId === customerId ? { ...c, loyaltyPoints: newPoints } : c))
+      prev.map(c => (c.customerId === customerId ? updatedCustomer : c))
     );
+    persistToCloud('customers', customerId, updatedCustomer);
 
     const monetaryVal = calculateMonetaryValue(points, settings?.loyaltySettings || DEFAULT_LOYALTY_SETTINGS);
 
@@ -4414,6 +4564,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setWholesaleSales(prev => [newSale, ...prev]);
+    persistToCloud('wholesale_sales', invoiceNum, newSale);
 
     // 1. Decrement Lens / Item Stock
     saleData.items.forEach(item => {
@@ -4422,11 +4573,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           prev.map(l => {
             if (l.lensCode === item.code) {
               const nextStock = Math.max(0, l.currentStock - item.quantity);
-              return {
+              const updated = {
                 ...l,
                 currentStock: nextStock,
-                status: nextStock === 0 ? 'Out of Stock' : nextStock <= l.reorderLevel ? 'Low Stock' : 'Available'
+                status: (nextStock === 0 ? 'Out of Stock' : nextStock <= l.reorderLevel ? 'Low Stock' : 'Available') as any
               };
+              persistToCloud('lenses', l.lensCode, updated);
+              return updated;
             }
             return l;
           })
@@ -4436,11 +4589,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           prev.map(f => {
             if (f.sku === item.code) {
               const nextStock = Math.max(0, f.currentStock - item.quantity);
-              return {
+              const updated = {
                 ...f,
                 currentStock: nextStock,
-                status: nextStock === 0 ? 'Out of Stock' : nextStock <= f.reorderLevel ? 'Low Stock' : 'Available'
+                status: (nextStock === 0 ? 'Out of Stock' : nextStock <= f.reorderLevel ? 'Low Stock' : 'Available') as any
               };
+              persistToCloud('frames', f.sku, updated);
+              return updated;
             }
             return f;
           })
@@ -4471,12 +4626,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setDealers(prev =>
         prev.map(d => {
           if (d.dealerId === newSale.dealerId) {
-            return {
+            const updated = {
               ...d,
               totalPurchase: (d.totalPurchase || 0) + newSale.grandTotal,
               currentDue: (d.currentDue || 0) + newSale.due,
               lastPurchaseDate: today
             };
+            persistToCloud('dealers', d.dealerId, updated);
+            return updated;
           }
           return d;
         })
@@ -4498,6 +4655,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notes: `Wholesale payment against invoice ${invoiceNum}`
       };
       setPayments(prev => [payment, ...prev]);
+      persistToCloud('payments', payment.paymentId, payment);
     }
 
     addAuditLog('CREATE_WHOLESALE_SALE', 'Inventory', invoiceNum, `B2B Wholesale sale ₹${newSale.grandTotal} to ${newSale.wholesaleCustomer}`);
@@ -4507,6 +4665,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateWholesaleSale = (sale: WholesaleSale) => {
     setWholesaleSales(prev => prev.map(s => (s.invoiceNumber === sale.invoiceNumber ? sale : s)));
+    persistToCloud('wholesale_sales', sale.invoiceNumber, sale);
     addAuditLog('UPDATE_WHOLESALE_SALE', 'Inventory', sale.invoiceNumber, `Updated wholesale invoice status: ${sale.deliveryStatus} / ${sale.paymentStatus}`);
     showToast(`Wholesale invoice ${sale.invoiceNumber} updated!`);
   };
@@ -4518,9 +4677,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const diff = physicalStock - lens.currentStock;
     const nextStatus = physicalStock === 0 ? 'Out of Stock' : physicalStock <= lens.reorderLevel ? 'Low Stock' : 'Available';
 
+    const updatedLens = { ...lens, currentStock: physicalStock, status: nextStatus as any };
     setLenses(prev =>
-      prev.map(l => (l.lensCode === lensCode ? { ...l, currentStock: physicalStock, status: nextStatus } : l))
+      prev.map(l => (l.lensCode === lensCode ? updatedLens : l))
     );
+    persistToCloud('lenses', lensCode, updatedLens);
 
     const adjRecord: StockAdjustmentRecord = {
       id: `ADJ-${Date.now().toString().slice(-6)}`,
@@ -4571,6 +4732,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setLensReturns(prev => [newRet, ...prev]);
+    persistToCloud('lens_returns', id, newRet);
 
     // If restockable, add stock back
     if (ret.condition === 'Good / Resellable' && ret.lensCode) {
@@ -4578,11 +4740,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         prev.map(l => {
           if (l.lensCode === ret.lensCode) {
             const nextStock = l.currentStock + ret.quantity;
-            return {
+            const updated = {
               ...l,
               currentStock: nextStock,
-              status: nextStock <= l.reorderLevel ? 'Low Stock' : 'Available'
+              status: (nextStock <= l.reorderLevel ? 'Low Stock' : 'Available') as any
             };
+            persistToCloud('lenses', l.lensCode, updated);
+            return updated;
           }
           return l;
         })
@@ -4620,16 +4784,20 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    const updated = { ...customer, mrd, name: customer.name || patient.name };
     setCustomers(prev =>
-      prev.map(c => (c.customerId === customerId ? { ...c, mrd, name: c.name || patient.name } : c))
+      prev.map(c => (c.customerId === customerId ? updated : c))
     );
+    persistToCloud('customers', customerId, updated);
 
     addAuditLog('LINK_PATIENT_CUSTOMER', 'Patients', `${mrd}<->${customerId}`, `Linked Patient ${mrd} (${patient.name}) with Customer ${customerId}`);
     showToast(`Linked ${patient.name} (MRD: ${mrd}) with Customer ID: ${customerId}!`);
   };
 
   const updateSettings = (newSettings: Partial<ClinicSettings>) => {
+    const merged = { ...settings, ...newSettings };
     setSettings(prev => ({ ...prev, ...newSettings }));
+    persistToCloud('clinic_settings', 'main', merged);
     addAuditLog('UPDATE_SETTINGS', 'Settings', 'CONFIG', 'Updated clinic and ERP configuration settings');
     showToast('ERP Settings updated!');
   };
@@ -4671,6 +4839,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedBy: userName
       };
       setMasters(prev => [recordToSave, ...prev]);
+      persistToCloud('masters', recordToSave.id, recordToSave);
       addAuditLog('CREATE', 'Settings', recordToSave.id, `Created new ${item.categoryKey} master record: "${recordToSave.name}"`);
       showToast(`Master entry "${recordToSave.name}" created successfully!`, 'success');
     } else {
@@ -4684,6 +4853,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedBy: userName
       } as MasterRecord;
       setMasters(prev => prev.map(m => m.id === item.id ? recordToSave : m));
+      persistToCloud('masters', recordToSave.id, recordToSave);
       addAuditLog('UPDATE', 'Settings', recordToSave.id, `Updated ${item.categoryKey} master record: "${recordToSave.name}"`);
       showToast(`Master entry "${recordToSave.name}" updated successfully!`, 'success');
     }
@@ -4694,6 +4864,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const item = masters.find(m => m.id === id);
     if (!item) return;
     setMasters(prev => prev.filter(m => m.id !== id));
+    deleteFromCloud('masters', id);
     addAuditLog('DELETE', 'Settings', id, `Deleted master record: "${item.name}" (${item.categoryKey})`);
     showToast(`Master record "${item.name}" deleted`, 'info');
   };
@@ -4704,13 +4875,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newStatus = !item.active;
     const now = new Date().toISOString();
     const userName = role === 'Admin' ? 'Admin' : (settings.doctorName || 'Dr. S. K. Banerjee');
-    
-    setMasters(prev => prev.map(m => m.id === id ? {
-      ...m,
+    const updated = {
+      ...item,
       active: newStatus,
       updatedAt: now,
       updatedBy: userName
-    } : m));
+    };
+    
+    setMasters(prev => prev.map(m => m.id === id ? updated : m));
+    persistToCloud('masters', id, updated);
     
     addAuditLog('UPDATE', 'Settings', item.id, `${newStatus ? 'Activated' : 'Deactivated'} ${item.categoryKey} record: "${item.name}"`);
     showToast(
