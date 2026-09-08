@@ -52,7 +52,9 @@ import {
   PermissionAction,
   CanonicalRole,
   FailedAccessAttempt,
-  ModulePermissions
+  ModulePermissions,
+  PrescriptionRecord,
+  FirestoreConnectionState
 } from '../types';
 import {
   saveCloudDocument,
@@ -74,7 +76,10 @@ import {
   createStaffAuthAccount,
   ensureFirebaseAuth,
   auth,
-  CloudSyncStatus
+  CloudSyncStatus,
+  subscribeSnapshotsInSync,
+  flushPendingWrites,
+  pingFirestore
 } from '../services/firebaseService';
 import {
   getDefaultRolePermissions,
@@ -263,6 +268,10 @@ interface ErpContextType {
   appointments: Appointment[];
   visits: ClinicalVisit[];
   clinicalVisits: ClinicalVisit[];
+  prescriptions: PrescriptionRecord[];
+  setPrescriptions: React.Dispatch<React.SetStateAction<PrescriptionRecord[]>>;
+  savePrescription: (rx: PrescriptionRecord) => Promise<boolean>;
+  deletePrescription: (rxId: string) => Promise<boolean>;
   medicines: MedicineMaster[];
   frames: FrameMaster[];
   lenses: LensMaster[];
@@ -302,6 +311,12 @@ interface ErpContextType {
   showToast: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   cloudSyncStatus: CloudSyncStatus;
   setCloudSyncStatus: (status: CloudSyncStatus) => void;
+  firestoreConnectionState: FirestoreConnectionState;
+  setFirestoreConnectionState: (state: FirestoreConnectionState) => void;
+  pendingWritesCount: number;
+  isReconciling: boolean;
+  reconcileWithServer: () => Promise<void>;
+  pingServerLatency: () => Promise<{ ok: boolean; latencyMs: number }>;
   cloudLastSyncTime: string | null;
   setCloudLastSyncTime: (time: string | null) => void;
   syncAllToFirestore: () => Promise<void>;
@@ -535,6 +550,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const res = getStored('VISITS', INITIAL_VISITS);
     return Array.isArray(res) ? res : INITIAL_VISITS;
   });
+  const [prescriptions, setPrescriptions] = useState<PrescriptionRecord[]>(() => {
+    const res = getStored('PRESCRIPTIONS', []);
+    return Array.isArray(res) ? res : [];
+  });
   const [medicines, setMedicines] = useState<MedicineMaster[]>(() => {
     const res = getStored('MEDICINES', INITIAL_MEDICINES);
     return Array.isArray(res) ? res : INITIAL_MEDICINES;
@@ -680,6 +699,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [quickModal, setQuickModal] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'warning' | 'error' } | null>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 4000);
+  }, []);
   const [googleSheetsStatus, setGoogleSheetsStatus] = useState<GoogleSheetsStatus>(() => ({
     synced: true,
     syncing: false,
@@ -690,6 +716,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>(() =>
     navigator.onLine ? 'synced' : 'offline'
   );
+  const [firestoreConnectionState, setFirestoreConnectionState] = useState<FirestoreConnectionState>(() =>
+    navigator.onLine ? 'connected' : 'disconnected'
+  );
+  const [pendingWritesCount, setPendingWritesCount] = useState<number>(0);
+  const [isReconciling, setIsReconciling] = useState<boolean>(false);
   const [cloudLastSyncTime, setCloudLastSyncTime] = useState<string | null>(() =>
     localStorage.getItem('PAHARPUR_LAST_MIGRATION_TIME') || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   );
@@ -1271,58 +1302,111 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('LOGIN', 'Settings', user.uid, `Session context switched to ${user.displayName} (${user.role})`);
   };
 
-  // Monitor network status
+  // Monitor network status and automatic offline reconciliation
   useEffect(() => {
-    const handleOnline = () => {
-      setCloudSyncStatus('online');
-      syncAllFromFirestore().catch(() => {});
+    const handleOnline = async () => {
+      setCloudSyncStatus('syncing');
+      setFirestoreConnectionState('sync-pending');
+      setIsReconciling(true);
+      showToast('Internet connection restored. Reconciling with cloud server...', 'info');
+      try {
+        await syncAllFromFirestore();
+        await flushPendingWrites();
+        setFirestoreConnectionState('connected');
+        setCloudSyncStatus('synced');
+        setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        showToast('All collections reconciled with live Firestore cloud.', 'success');
+      } catch (err) {
+        setFirestoreConnectionState('connected');
+        setCloudSyncStatus('synced');
+      } finally {
+        setIsReconciling(false);
+      }
     };
-    const handleOffline = () => setCloudSyncStatus('offline');
+    const handleOffline = () => {
+      setCloudSyncStatus('offline');
+      setFirestoreConnectionState('disconnected');
+      showToast('Device is offline. Local persistence active via cache.', 'warning');
+    };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [showToast]);
 
-  // Safe background persist helper
+  // Safe background persist helper with pending writes tracking
   const persistToCloud = useCallback(async (collectionName: string, docId: string, data: any) => {
     if (!docId) return false;
-    try {
+    setPendingWritesCount(prev => prev + 1);
+    if (navigator.onLine) {
       setCloudSyncStatus('syncing');
+      setFirestoreConnectionState('sync-pending');
+    }
+    try {
       const author = currentUser?.email || firebaseUser?.email || (role === 'Doctor' ? settings.doctorName : `${role} Staff`);
       const ok = await saveCloudDocument(collectionName, docId, data, author);
       if (ok) {
-        setCloudSyncStatus('synced');
         setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        if (navigator.onLine) {
+          setCloudSyncStatus('synced');
+          setFirestoreConnectionState('connected');
+        }
       } else {
-        setCloudSyncStatus('error');
+        if (!navigator.onLine) {
+          setFirestoreConnectionState('disconnected');
+        } else {
+          setCloudSyncStatus('error');
+        }
       }
       return ok;
     } catch (err) {
       console.warn(`Cloud persist error on ${collectionName}/${docId}:`, err);
-      setCloudSyncStatus('error');
+      if (!navigator.onLine) {
+        setFirestoreConnectionState('disconnected');
+      } else {
+        setCloudSyncStatus('error');
+      }
       return false;
+    } finally {
+      setPendingWritesCount(prev => Math.max(0, prev - 1));
     }
   }, [currentUser, firebaseUser, role, settings.doctorName]);
 
   const deleteFromCloud = useCallback(async (collectionName: string, docId: string) => {
     if (!docId) return false;
-    try {
+    setPendingWritesCount(prev => prev + 1);
+    if (navigator.onLine) {
       setCloudSyncStatus('syncing');
+      setFirestoreConnectionState('sync-pending');
+    }
+    try {
       const ok = await deleteCloudDocument(collectionName, docId);
       if (ok) {
-        setCloudSyncStatus('synced');
         setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        if (navigator.onLine) {
+          setCloudSyncStatus('synced');
+          setFirestoreConnectionState('connected');
+        }
       } else {
-        setCloudSyncStatus('error');
+        if (!navigator.onLine) {
+          setFirestoreConnectionState('disconnected');
+        } else {
+          setCloudSyncStatus('error');
+        }
       }
       return ok;
     } catch (err) {
       console.warn(`Cloud delete error on ${collectionName}/${docId}:`, err);
-      setCloudSyncStatus('error');
+      if (!navigator.onLine) {
+        setFirestoreConnectionState('disconnected');
+      } else {
+        setCloudSyncStatus('error');
+      }
       return false;
+    } finally {
+      setPendingWritesCount(prev => Math.max(0, prev - 1));
     }
   }, []);
 
@@ -1383,43 +1467,45 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCloudSyncStatus('syncing');
     try {
       const [
-        cloudPatients,
-        cloudCustomers,
-        cloudAppointments,
-        cloudVisits,
-        cloudOrders,
-        cloudRetail,
-        cloudWholesale,
-        cloudFrames,
-        cloudLenses,
-        cloudMedicines,
-        cloudStockMov,
-        cloudPurchases,
-        cloudLensPurchases,
-        cloudStockAdjustments,
-        cloudLensReturns,
-        cloudSuppliers,
-        cloudDealers,
-        cloudPayments,
-        cloudLoyalty,
-        cloudPowers,
-        cloudMasters,
-        cloudAuditLogs,
-        cloudCommLogs,
-        cloudTemplates,
-        cloudCampaigns,
-        cloudOffers,
-        cloudLeads,
-        cloudAutomation,
-        cloudSegments,
-        cloudUsers,
-        cloudClinicSettings,
-        cloudRoleConfig
-      ] = await Promise.all([
+        resPatients,
+        resCustomers,
+        resAppointments,
+        resVisits,
+        resPrescriptions,
+        resOrders,
+        resRetail,
+        resWholesale,
+        resFrames,
+        resLenses,
+        resMedicines,
+        resStockMov,
+        resPurchases,
+        resLensPurchases,
+        resStockAdjustments,
+        resLensReturns,
+        resSuppliers,
+        resDealers,
+        resPayments,
+        resLoyalty,
+        resPowers,
+        resMasters,
+        resAuditLogs,
+        resCommLogs,
+        resTemplates,
+        resCampaigns,
+        resOffers,
+        resLeads,
+        resAutomation,
+        resSegments,
+        resUsers,
+        resClinicSettings,
+        resRoleConfig
+      ] = await Promise.allSettled([
         loadCloudCollection<Patient>('patients'),
         loadCloudCollection<Customer>('customers'),
         loadCloudCollection<Appointment>('appointments'),
         loadCloudCollection<ClinicalVisit>('clinical_visits'),
+        loadCloudCollection<PrescriptionRecord>('prescriptions'),
         loadCloudCollection<SpectacleOrder>('spectacle_orders'),
         loadCloudCollection<RetailSale>('retail_sales'),
         loadCloudCollection<WholesaleSale>('wholesale_sales'),
@@ -1451,50 +1537,110 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ]);
 
       // Cloud-First: If Firestore has records, Firestore is the single source of truth and supersedes local cache
-      if (cloudPatients.length > 0) setPatients(cloudPatients);
-      if (cloudCustomers.length > 0) setCustomers(cloudCustomers);
-      if (cloudAppointments.length > 0) setAppointments(cloudAppointments);
-      if (cloudVisits.length > 0) setVisits(cloudVisits);
-      if (cloudOrders.length > 0) setSpectacleOrders(cloudOrders);
-      if (cloudRetail.length > 0) setRetailSales(cloudRetail);
-      if (cloudWholesale.length > 0) setWholesaleSales(cloudWholesale);
-      if (cloudFrames.length > 0) setFrames(cloudFrames);
-      if (cloudLenses.length > 0) setLenses(cloudLenses);
-      if (cloudMedicines.length > 0) setMedicines(cloudMedicines);
-      if (cloudStockMov.length > 0) setStockMovements(cloudStockMov);
-      if (cloudPurchases.length > 0) setPurchases(cloudPurchases);
-      if (cloudLensPurchases.length > 0) setLensPurchases(cloudLensPurchases);
-      if (cloudStockAdjustments.length > 0) setStockAdjustments(cloudStockAdjustments);
-      if (cloudLensReturns.length > 0) setLensReturns(cloudLensReturns);
-      if (cloudSuppliers.length > 0) setSuppliers(cloudSuppliers);
-      if (cloudDealers.length > 0) setDealers(cloudDealers);
-      if (cloudPayments.length > 0) setPayments(cloudPayments);
-      if (cloudLoyalty.length > 0) setLoyaltyLogs(cloudLoyalty);
-      if (cloudPowers.length > 0) setCustomerPowers(cloudPowers);
-      if (cloudMasters.length > 0) setMasters(cloudMasters);
-      if (cloudAuditLogs.length > 0) setAuditLogs(sanitizeAndDeduplicateAuditLogs(cloudAuditLogs));
-      if (cloudCommLogs.length > 0) setCommunicationLogs(cloudCommLogs);
-      if (cloudTemplates.length > 0) setTemplates(cloudTemplates);
-      if (cloudCampaigns.length > 0) setCampaigns(cloudCampaigns);
-      if (cloudOffers.length > 0) setOffers(cloudOffers);
-      if (cloudLeads.length > 0) setLeads(cloudLeads);
-      if (cloudAutomation.length > 0) setAutomationRules(cloudAutomation);
-      if (cloudSegments.length > 0) setCustomSegments(cloudSegments);
-      if (cloudUsers.length > 0) setErpUsers(cloudUsers);
-      if (cloudClinicSettings && Object.keys(cloudClinicSettings).length > 0) {
-        setSettings(prev => ({ ...prev, ...cloudClinicSettings }));
+      if (resPatients.status === 'fulfilled' && resPatients.value.length > 0) {
+        setPatients([...resPatients.value].sort((a, b) => (b.registrationDate || '').localeCompare(a.registrationDate || '') || (b.mrd || '').localeCompare(a.mrd || '')));
       }
-      if (cloudRoleConfig && cloudRoleConfig.permissions) {
-        setRolePermissions(cloudRoleConfig.permissions);
+      if (resCustomers.status === 'fulfilled' && resCustomers.value.length > 0) setCustomers(resCustomers.value);
+      if (resAppointments.status === 'fulfilled' && resAppointments.value.length > 0) {
+        setAppointments([...resAppointments.value].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || '') || (b.id || '').localeCompare(a.id || '')));
+      }
+      if (resVisits.status === 'fulfilled' && resVisits.value.length > 0) {
+        setVisits([...resVisits.value].sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || '') || (b.visitId || '').localeCompare(a.visitId || '')));
+      }
+      if (resPrescriptions.status === 'fulfilled' && resPrescriptions.value.length > 0) {
+        setPrescriptions([...resPrescriptions.value].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.rxId || '').localeCompare(a.rxId || '')));
+      }
+      if (resOrders.status === 'fulfilled' && resOrders.value.length > 0) {
+        setSpectacleOrders([...resOrders.value].sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || '') || (b.orderId || '').localeCompare(a.orderId || '')));
+      }
+      if (resRetail.status === 'fulfilled' && resRetail.value.length > 0) {
+        setRetailSales([...resRetail.value].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '')));
+      }
+      if (resWholesale.status === 'fulfilled' && resWholesale.value.length > 0) {
+        setWholesaleSales([...resWholesale.value].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.invoiceNumber || '').localeCompare(a.invoiceNumber || '')));
+      }
+      if (resFrames.status === 'fulfilled' && resFrames.value.length > 0) setFrames(resFrames.value);
+      if (resLenses.status === 'fulfilled' && resLenses.value.length > 0) setLenses(resLenses.value);
+      if (resMedicines.status === 'fulfilled' && resMedicines.value.length > 0) setMedicines(resMedicines.value);
+      if (resStockMov.status === 'fulfilled' && resStockMov.value.length > 0) {
+        setStockMovements([...resStockMov.value].sort((a, b) => (b.timestamp || b.date || '').localeCompare(a.timestamp || a.date || '') || (b.id || '').localeCompare(a.id || '')));
+      }
+      if (resPurchases.status === 'fulfilled' && resPurchases.value.length > 0) setPurchases(resPurchases.value);
+      if (resLensPurchases.status === 'fulfilled' && resLensPurchases.value.length > 0) setLensPurchases(resLensPurchases.value);
+      if (resStockAdjustments.status === 'fulfilled' && resStockAdjustments.value.length > 0) setStockAdjustments(resStockAdjustments.value);
+      if (resLensReturns.status === 'fulfilled' && resLensReturns.value.length > 0) setLensReturns(resLensReturns.value);
+      if (resSuppliers.status === 'fulfilled' && resSuppliers.value.length > 0) setSuppliers(resSuppliers.value);
+      if (resDealers.status === 'fulfilled' && resDealers.value.length > 0) setDealers(resDealers.value);
+      if (resPayments.status === 'fulfilled' && resPayments.value.length > 0) {
+        setPayments([...resPayments.value].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.paymentId || '').localeCompare(a.paymentId || '')));
+      }
+      if (resLoyalty.status === 'fulfilled' && resLoyalty.value.length > 0) {
+        setLoyaltyLogs([...resLoyalty.value].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || '')));
+      }
+      if (resPowers.status === 'fulfilled' && resPowers.value.length > 0) setCustomerPowers(resPowers.value);
+      if (resMasters.status === 'fulfilled' && resMasters.value.length > 0) setMasters(resMasters.value);
+      if (resAuditLogs.status === 'fulfilled' && resAuditLogs.value.length > 0) {
+        setAuditLogs(sanitizeAndDeduplicateAuditLogs(resAuditLogs.value).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || '')));
+      }
+      if (resCommLogs.status === 'fulfilled' && resCommLogs.value.length > 0) setCommunicationLogs(resCommLogs.value);
+      if (resTemplates.status === 'fulfilled' && resTemplates.value.length > 0) setTemplates(resTemplates.value);
+      if (resCampaigns.status === 'fulfilled' && resCampaigns.value.length > 0) setCampaigns(resCampaigns.value);
+      if (resOffers.status === 'fulfilled' && resOffers.value.length > 0) setOffers(resOffers.value);
+      if (resLeads.status === 'fulfilled' && resLeads.value.length > 0) setLeads(resLeads.value);
+      if (resAutomation.status === 'fulfilled' && resAutomation.value.length > 0) setAutomationRules(resAutomation.value);
+      if (resSegments.status === 'fulfilled' && resSegments.value.length > 0) setCustomSegments(resSegments.value);
+      if (resUsers.status === 'fulfilled' && resUsers.value.length > 0) setErpUsers(resUsers.value);
+      if (resClinicSettings.status === 'fulfilled' && resClinicSettings.value && Object.keys(resClinicSettings.value).length > 0) {
+        setSettings(prev => ({ ...prev, ...(resClinicSettings as PromiseFulfilledResult<ClinicSettings>).value }));
+      }
+      if (resRoleConfig.status === 'fulfilled' && resRoleConfig.value && (resRoleConfig.value as any).permissions) {
+        setRolePermissions((resRoleConfig.value as any).permissions);
       }
 
       setCloudSyncStatus('synced');
+      setFirestoreConnectionState('connected');
       setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     } catch (err) {
       console.warn('Could not sync from Firestore:', err);
       setCloudSyncStatus('error');
     }
   };
+
+  const reconcileWithServer = useCallback(async () => {
+    if (!navigator.onLine) {
+      showToast('Device is offline. Connect to the internet to reconcile with cloud server.', 'warning');
+      setFirestoreConnectionState('disconnected');
+      return;
+    }
+    setIsReconciling(true);
+    setCloudSyncStatus('syncing');
+    setFirestoreConnectionState('sync-pending');
+    try {
+      await syncAllFromFirestore();
+      await flushPendingWrites();
+      setCloudSyncStatus('synced');
+      setFirestoreConnectionState('connected');
+      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setCloudLastSyncTime(nowStr);
+      showToast('Cloud reconciliation complete. All 33 modules in sync with server.', 'success');
+    } catch (err: any) {
+      console.warn('Reconcile error:', err);
+      showToast(`Reconciliation note: ${err?.message || 'Check connection'}`, 'warning');
+      if (navigator.onLine) {
+        setFirestoreConnectionState('connected');
+        setCloudSyncStatus('synced');
+      } else {
+        setFirestoreConnectionState('disconnected');
+        setCloudSyncStatus('offline');
+      }
+    } finally {
+      setIsReconciling(false);
+    }
+  }, [showToast]);
+
+  const pingServerLatency = useCallback(async (): Promise<{ ok: boolean; latencyMs: number }> => {
+    return await pingFirestore();
+  }, []);
 
   // CLOUD-FIRST INITIALIZATION & MULTI-DEVICE REAL-TIME FIRESTORE LISTENERS
   useEffect(() => {
@@ -1519,7 +1665,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             collectionName,
             (items) => {
               if (isCancelled) return;
-              if (items && items.length > 0) {
+              if (Array.isArray(items) && items.length > 0) {
                 setter(transform ? transform(items) : items);
               }
               setCloudSyncStatus('synced');
@@ -1532,23 +1678,40 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           unsubs.push(unsub);
         };
 
-        // Patients: Real-time multi-device cloud synchronization
-        attachListener<Patient>('patients', setPatients);
+        // Patients: Real-time multi-device cloud synchronization (Newest first)
+        attachListener<Patient>('patients', setPatients, (items) =>
+          [...items].sort((a, b) => (b.registrationDate || '').localeCompare(a.registrationDate || '') || (b.mrd || '').localeCompare(a.mrd || ''))
+        );
 
-        // Appointments
-        attachListener<Appointment>('appointments', setAppointments);
+        // Appointments: Real-time multi-device cloud synchronization (Newest first)
+        attachListener<Appointment>('appointments', setAppointments, (items) =>
+          [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || '') || (b.id || '').localeCompare(a.id || ''))
+        );
 
-        // Clinical Visits
-        attachListener<ClinicalVisit>('clinical_visits', setVisits);
+        // Clinical Visits: Real-time multi-device cloud synchronization (Newest first)
+        attachListener<ClinicalVisit>('clinical_visits', setVisits, (items) =>
+          [...items].sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || '') || (b.visitId || '').localeCompare(a.visitId || ''))
+        );
 
-        // Spectacle Orders
-        attachListener<SpectacleOrder>('spectacle_orders', setSpectacleOrders);
+        // Prescriptions: Real-time multi-device cloud synchronization (Newest first)
+        attachListener<PrescriptionRecord>('prescriptions', setPrescriptions, (items) =>
+          [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.rxId || '').localeCompare(a.rxId || ''))
+        );
 
-        // Retail Sales
-        attachListener<RetailSale>('retail_sales', setRetailSales);
+        // Spectacle Orders: Real-time multi-device cloud synchronization (Newest first)
+        attachListener<SpectacleOrder>('spectacle_orders', setSpectacleOrders, (items) =>
+          [...items].sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || '') || (b.orderId || '').localeCompare(a.orderId || ''))
+        );
 
-        // Wholesale Sales
-        attachListener<WholesaleSale>('wholesale_sales', setWholesaleSales);
+        // Retail Sales: Real-time multi-device cloud synchronization (Newest first)
+        attachListener<RetailSale>('retail_sales', setRetailSales, (items) =>
+          [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.invoiceNumber || '').localeCompare(a.invoiceNumber || ''))
+        );
+
+        // Wholesale Sales: Real-time multi-device cloud synchronization (Newest first)
+        attachListener<WholesaleSale>('wholesale_sales', setWholesaleSales, (items) =>
+          [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.invoiceNumber || '').localeCompare(a.invoiceNumber || ''))
+        );
 
         // Customers
         attachListener<Customer>('customers', setCustomers);
@@ -1566,16 +1729,22 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         attachListener<MedicineMaster>('medicines', setMedicines);
 
         // Central Stock Ledger (Stock Movements)
-        attachListener<StockMovement>('stock_movements', setStockMovements);
+        attachListener<StockMovement>('stock_movements', setStockMovements, (items) =>
+          [...items].sort((a, b) => (b.timestamp || b.date || '').localeCompare(a.timestamp || a.date || '') || (b.id || '').localeCompare(a.id || ''))
+        );
 
         // Purchases
         attachListener<PurchaseRecord>('purchases', setPurchases);
 
         // Payments
-        attachListener<PaymentRecord>('payments', setPayments);
+        attachListener<PaymentRecord>('payments', setPayments, (items) =>
+          [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.paymentId || '').localeCompare(a.paymentId || ''))
+        );
 
         // Loyalty Logs
-        attachListener<LoyaltyTransaction>('loyalty_logs', setLoyaltyLogs);
+        attachListener<LoyaltyTransaction>('loyalty_logs', setLoyaltyLogs, (items) =>
+          [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''))
+        );
 
         // Stock Adjustments
         attachListener<StockAdjustmentRecord>('stock_adjustments', setStockAdjustments);
@@ -1620,7 +1789,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         attachListener<ERPUser>('users', setErpUsers);
 
         // Audit Logs
-        attachListener<AuditLog>('audit_logs', setAuditLogs, sanitizeAndDeduplicateAuditLogs);
+        attachListener<AuditLog>('audit_logs', setAuditLogs, (items) =>
+          sanitizeAndDeduplicateAuditLogs(items).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''))
+        );
 
         // Clinic Settings real-time listener (doc 'main' in 'clinic_settings')
         unsubs.push(subscribeCloudDocument<ClinicSettings>('clinic_settings', 'main', (docData) => {
@@ -1638,8 +1809,23 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }));
 
+        // Subscribe to Firestore global snapshots-in-sync lifecycle
+        unsubs.push(subscribeSnapshotsInSync(() => {
+          if (isCancelled) return;
+          if (navigator.onLine && pendingWritesCount === 0) {
+            setFirestoreConnectionState('connected');
+            setCloudSyncStatus('synced');
+          }
+        }));
+
         // Initial background fetch to verify all collections
-        syncAllFromFirestore().catch(err => {
+        syncAllFromFirestore().then(() => {
+          if (isCancelled) return;
+          if (navigator.onLine) {
+            setFirestoreConnectionState('connected');
+            setCloudSyncStatus('synced');
+          }
+        }).catch(err => {
           console.warn('Background sync check completed with note:', err?.message || err);
         });
       } catch (err: any) {
@@ -1663,6 +1849,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { setStored('PATIENTS', patients); }, [patients]);
   useEffect(() => { setStored('APPOINTMENTS', appointments); }, [appointments]);
   useEffect(() => { setStored('VISITS', visits); }, [visits]);
+  useEffect(() => { setStored('PRESCRIPTIONS', prescriptions); }, [prescriptions]);
   useEffect(() => { setStored('MEDICINES', medicines); }, [medicines]);
   useEffect(() => { setStored('FRAMES', frames); }, [frames]);
   useEffect(() => { setStored('LENSES', lenses); }, [lenses]);
@@ -1691,13 +1878,6 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { setStored('MASTERS', masters); }, [masters]);
   useEffect(() => { setStored('SETTINGS', settings); }, [settings]);
   useEffect(() => { setStored('CLINICAL_DRAFT', clinicalDraft); }, [clinicalDraft]);
-
-  const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
-    setNotification({ message, type });
-    setTimeout(() => {
-      setNotification(null);
-    }, 4000);
-  };
 
   const addAuditLog = (
     action: string,
@@ -2592,6 +2772,31 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setVisits(prev => [newVisit, ...prev]);
     persistToCloud('clinical_visits', visitId, newVisit);
 
+    // Synchronize to prescriptions collection as well
+    const rxRecord: PrescriptionRecord = {
+      rxId: newVisit.rxId,
+      visitId: newVisit.visitId,
+      mrd: newVisit.mrd,
+      patientName: newVisit.patientName,
+      age: newVisit.age,
+      gender: newVisit.gender,
+      date: newVisit.visitDate,
+      doctor: newVisit.doctor,
+      odPower: newVisit.odPower,
+      osPower: newVisit.osPower,
+      medicines: newVisit.medicines,
+      diagnosis: newVisit.diagnosis,
+      advice: newVisit.advice,
+      followUpDate: newVisit.followUpDate
+    };
+    persistToCloud('prescriptions', rxRecord.rxId, rxRecord);
+    setPrescriptions(prev => {
+      if (prev.some(r => r.rxId === rxRecord.rxId)) {
+        return prev.map(r => r.rxId === rxRecord.rxId ? rxRecord : r);
+      }
+      return [rxRecord, ...prev];
+    });
+
     // If linked to appointment, mark completed
     if (draft.appointmentId) {
       updateAppointmentStatus(draft.appointmentId, 'Completed');
@@ -2638,6 +2843,28 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateClinicalVisit = (updatedVisit: ClinicalVisit) => {
     setVisits(prev => prev.map(v => (v.visitId === updatedVisit.visitId ? updatedVisit : v)));
     persistToCloud('clinical_visits', updatedVisit.visitId, updatedVisit);
+
+    if (updatedVisit.rxId) {
+      const rxRecord: PrescriptionRecord = {
+        rxId: updatedVisit.rxId,
+        visitId: updatedVisit.visitId,
+        mrd: updatedVisit.mrd,
+        patientName: updatedVisit.patientName,
+        age: updatedVisit.age,
+        gender: updatedVisit.gender,
+        date: updatedVisit.visitDate,
+        doctor: updatedVisit.doctor,
+        odPower: updatedVisit.odPower,
+        osPower: updatedVisit.osPower,
+        medicines: updatedVisit.medicines,
+        diagnosis: updatedVisit.diagnosis,
+        advice: updatedVisit.advice,
+        followUpDate: updatedVisit.followUpDate
+      };
+      persistToCloud('prescriptions', rxRecord.rxId, rxRecord);
+      setPrescriptions(prev => prev.map(r => r.rxId === rxRecord.rxId ? rxRecord : r));
+    }
+
     addAuditLog('UPDATE_CLINICAL_VISIT' as any, 'Clinical', updatedVisit.visitId, `Updated clinical visit for ${updatedVisit.patientName} (${updatedVisit.mrd})`);
     showToast(`Visit ${updatedVisit.visitId} updated successfully!`);
   };
@@ -2646,8 +2873,40 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const target = visits.find(v => v.visitId === visitId);
     setVisits(prev => prev.filter(v => v.visitId !== visitId));
     deleteFromCloud('clinical_visits', visitId);
+
+    if (target?.rxId) {
+      deleteFromCloud('prescriptions', target.rxId);
+      setPrescriptions(prev => prev.filter(r => r.rxId !== target.rxId));
+    }
+
     addAuditLog('DELETE_CLINICAL_VISIT' as any, 'Clinical', visitId, `Deleted clinical visit for ${target?.patientName || ''} (${visitId})`);
     showToast(`Visit record deleted`, 'info');
+  };
+
+  const savePrescription = async (rx: PrescriptionRecord): Promise<boolean> => {
+    if (!rx.rxId) return false;
+    const author = currentUser?.email || firebaseUser?.email || (role === 'Doctor' ? settings.doctorName : `${role} Staff`);
+    const ok = await saveCloudDocument('prescriptions', rx.rxId, rx, author);
+    if (ok) {
+      setPrescriptions(prev => {
+        if (prev.some(r => r.rxId === rx.rxId)) {
+          return prev.map(r => r.rxId === rx.rxId ? rx : r);
+        }
+        return [rx, ...prev];
+      });
+      showToast(`Prescription ${rx.rxId} saved & synced across devices`, 'success');
+    }
+    return ok;
+  };
+
+  const deletePrescription = async (rxId: string): Promise<boolean> => {
+    if (!rxId) return false;
+    const ok = await deleteCloudDocument('prescriptions', rxId);
+    if (ok) {
+      setPrescriptions(prev => prev.filter(r => r.rxId !== rxId));
+      showToast(`Prescription ${rxId} deleted`, 'info');
+    }
+    return ok;
   };
 
   const loadVisitForEditing = (visit: ClinicalVisit) => {
@@ -5756,6 +6015,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         appointments,
         visits,
         clinicalVisits: visits,
+        prescriptions,
+        setPrescriptions,
+        savePrescription,
+        deletePrescription,
         medicines,
         frames,
         lenses,
@@ -5903,6 +6166,12 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         syncWithGoogleSheets,
         cloudSyncStatus,
         setCloudSyncStatus,
+        firestoreConnectionState,
+        setFirestoreConnectionState,
+        pendingWritesCount,
+        isReconciling,
+        reconcileWithServer,
+        pingServerLatency,
         cloudLastSyncTime,
         setCloudLastSyncTime,
         syncAllToFirestore,

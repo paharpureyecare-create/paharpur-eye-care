@@ -71,6 +71,8 @@ export interface ModulePermissions {
 
 export type RolePermissionsMap = Record<CanonicalRole, Record<PermissionModule, ModulePermissions>>;
 
+export type FirestoreConnectionState = 'connected' | 'disconnected' | 'sync-pending';
+
 export interface FailedAccessAttempt {
   id: string;
   timestamp: string;

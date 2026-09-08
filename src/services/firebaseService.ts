@@ -25,6 +25,8 @@ import {
   getDocs,
   deleteDoc,
   onSnapshot,
+  onSnapshotsInSync,
+  waitForPendingWrites,
   writeBatch,
   runTransaction,
   query,
@@ -74,26 +76,63 @@ try {
 export const db: Firestore = dbInstance;
 
 export type CloudSyncStatus = 'online' | 'offline' | 'syncing' | 'synced' | 'error';
+export type FirestoreConnectionState = 'connected' | 'disconnected' | 'sync-pending';
 
 export interface FirebaseConnectionInfo {
   isConfigured: boolean;
   projectId: string;
   databaseId: string;
   status: CloudSyncStatus;
+  connectionState: FirestoreConnectionState;
   lastSyncTime: string | null;
   errorMessage: string | null;
 }
 
 export const getFirebaseConnectionInfo = (): FirebaseConnectionInfo => {
   const cfg = firebaseConfig as any;
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
   return {
     isConfigured: Boolean(cfg?.projectId && cfg?.apiKey),
     projectId: cfg?.projectId || '',
     databaseId: cfg?.firestoreDatabaseId || '(default)',
-    status: navigator.onLine ? 'online' : 'offline',
+    status: isOnline ? 'online' : 'offline',
+    connectionState: isOnline ? 'connected' : 'disconnected',
     lastSyncTime: null,
     errorMessage: null
   };
+};
+
+/**
+ * Subscribes to Firestore global snapshot synchronization lifecycle event
+ */
+export const subscribeSnapshotsInSync = (callback: () => void): Unsubscribe => {
+  return onSnapshotsInSync(db, callback);
+};
+
+/**
+ * Waits for all pending local writes to be committed to Firestore server
+ */
+export const flushPendingWrites = async (): Promise<void> => {
+  try {
+    await waitForPendingWrites(db);
+  } catch (err) {
+    console.warn('flushPendingWrites notice:', err);
+  }
+};
+
+/**
+ * Checks roundtrip latency to Firestore for diagnostics
+ */
+export const pingFirestore = async (): Promise<{ ok: boolean; latencyMs: number }> => {
+  const start = performance.now();
+  try {
+    const docRef = doc(db, 'clinic_settings', 'main');
+    await getDoc(docRef);
+    const latencyMs = Math.round(performance.now() - start);
+    return { ok: true, latencyMs };
+  } catch (err) {
+    return { ok: false, latencyMs: Math.round(performance.now() - start) };
+  }
 };
 
 // ==========================================

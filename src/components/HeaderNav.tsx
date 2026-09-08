@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useErp } from '../context/ErpContext';
 import { UserRole } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
+import { SyncStatusIndicator } from './SyncStatusIndicator';
 import {
   Search,
   Plus,
@@ -219,32 +220,8 @@ export const HeaderNav: React.FC = () => {
                 <span className="text-[10px] bg-white/20 px-1 py-0.2 rounded-full font-mono">বাংলা</span>
               </button>
 
-              {/* Cloud Firestore Primary Database Pill */}
-              <button
-                id="header-cloud-database-btn"
-                onClick={() => setActiveTab('settings')}
-                title={`Cloud Firestore: ${cloudSyncStatus.toUpperCase()} • Click to open Cloud Hub`}
-                className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-2xs border ${
-                  cloudSyncStatus === 'synced' || cloudSyncStatus === 'online'
-                    ? 'bg-teal-50 hover:bg-teal-100 text-teal-800 border-teal-200'
-                    : cloudSyncStatus === 'syncing'
-                    ? 'bg-amber-50 text-amber-800 border-amber-200'
-                    : 'bg-slate-100 text-slate-700 border-slate-200'
-                }`}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    cloudSyncStatus === 'synced' || cloudSyncStatus === 'online'
-                      ? 'bg-teal-600'
-                      : cloudSyncStatus === 'syncing'
-                      ? 'bg-amber-500 animate-ping'
-                      : 'bg-slate-400'
-                  }`}
-                />
-                <span className="hidden md:inline">
-                  {cloudSyncStatus === 'syncing' ? 'Syncing...' : 'Cloud Synced'}
-                </span>
-              </button>
+              {/* Firestore Cloud Real-Time Connection & Reconciliation Indicator */}
+              <SyncStatusIndicator />
 
               {/* Google Sheets Sync Pill */}
               <button
