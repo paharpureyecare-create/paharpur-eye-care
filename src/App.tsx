@@ -37,6 +37,7 @@ import { AuthModal } from './components/AuthModal';
 import { PermissionDeniedCard } from './components/PermissionDeniedCard';
 import { getModuleForTab } from './services/permissionService';
 import { LoginPage } from './components/LoginPage';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
@@ -84,7 +85,7 @@ const MainLayout: React.FC = () => {
         <HeaderNav />
 
         {/* Dynamic Content Views */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8 pb-20 lg:pb-8">
           <div className="max-w-7xl mx-auto">
             {!isViewPermitted ? (
               <PermissionDeniedCard module={currentModule} />
@@ -115,6 +116,9 @@ const MainLayout: React.FC = () => {
             )}
           </div>
         </main>
+
+        {/* Mobile Bottom Navigation Bar */}
+        <MobileBottomNav />
       </div>
 
       {/* Global Modals & Overlays */}

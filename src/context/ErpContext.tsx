@@ -28,6 +28,7 @@ import {
   EyePower,
   ClinicalExamination,
   LensPurchaseRecord,
+  PurchaseRecord,
   DoctorMaster,
   OptometristMaster,
   PaymentMethod,
@@ -277,6 +278,7 @@ interface ErpContextType {
   stockAdjustments: StockAdjustmentRecord[];
   lensReturns: LensReturnRecord[];
   lensPurchases: LensPurchaseRecord[];
+  purchases: PurchaseRecord[];
   payments: PaymentRecord[];
   auditLogs: AuditLog[];
   settings: ClinicSettings;
@@ -448,6 +450,7 @@ interface ErpContextType {
   adjustLoyaltyPoints: (customerId: string, points: number, type: LoyaltyTransaction['type'], reason: string) => void;
   updateLoyaltySettings: (newLoyaltySettings: any) => void;
   adjustLensStock: (lensCode: string, physicalStock: number, reason: StockAdjustmentRecord['reason'], notes?: string) => void;
+  adjustFrameStock: (sku: string, physicalStock: number, reason: StockAdjustmentRecord['reason'], notes?: string) => void;
   createLensReturn: (ret: Omit<LensReturnRecord, 'id' | 'date'>) => LensReturnRecord;
   linkPatientAndCustomer: (mrd: string, customerId: string) => void;
   updateSettings: (newSettings: Partial<ClinicSettings>) => void;
@@ -591,6 +594,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lensPurchases, setLensPurchases] = useState<LensPurchaseRecord[]>(() => {
     const res = getStored('LENS_PURCHASES', INITIAL_LENS_PURCHASES);
     return Array.isArray(res) ? res : INITIAL_LENS_PURCHASES;
+  });
+  const [purchases, setPurchases] = useState<PurchaseRecord[]>(() => {
+    const res = getStored('PURCHASES', []);
+    return Array.isArray(res) ? res : [];
   });
   const [payments, setPayments] = useState<PaymentRecord[]>(() => {
     const res = getStored('PAYMENTS', INITIAL_PAYMENTS);
@@ -1336,6 +1343,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await migrateCollectionChunked('lenses', lenses, 'lensCode');
       await migrateCollectionChunked('medicines', medicines, 'id');
       await migrateCollectionChunked('stock_movements', stockMovements, 'id');
+      await migrateCollectionChunked('purchases', purchases, 'purchaseId');
+      await migrateCollectionChunked('lens_purchases', lensPurchases, 'id');
+      await migrateCollectionChunked('stock_adjustments', stockAdjustments, 'id');
+      await migrateCollectionChunked('lens_returns', lensReturns, 'id');
       await migrateCollectionChunked('suppliers', suppliers, 'supplierId');
       await migrateCollectionChunked('dealers', dealers, 'dealerId');
       await migrateCollectionChunked('payments', payments, 'paymentId');
@@ -1343,6 +1354,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await migrateCollectionChunked('customer_powers', customerPowers, 'powerId');
       await migrateCollectionChunked('masters', masters, 'id');
       await migrateCollectionChunked('audit_logs', auditLogs, 'id');
+      await migrateCollectionChunked('communication_logs', communicationLogs, 'id');
       await migrateCollectionChunked('whatsapp_templates', templates, 'id');
       await migrateCollectionChunked('marketing_campaigns', campaigns, 'id');
       await migrateCollectionChunked('marketing_offers', offers, 'id');
@@ -1351,6 +1363,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await migrateCollectionChunked('custom_segments', customSegments, 'id');
       await migrateCollectionChunked('users', erpUsers, 'uid');
       await saveCloudDocument('clinic_settings', 'main', settings);
+      await saveCloudDocument('system_config', 'role_permissions', { permissions: rolePermissions });
       const nowStr = new Date().toLocaleString('en-IN');
       setCloudLastSyncTime(nowStr);
       localStorage.setItem('PAHARPUR_LAST_MIGRATION_TIME', nowStr);
@@ -1375,6 +1388,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cloudLenses,
         cloudMedicines,
         cloudStockMov,
+        cloudPurchases,
+        cloudLensPurchases,
+        cloudStockAdjustments,
+        cloudLensReturns,
         cloudSuppliers,
         cloudDealers,
         cloudPayments,
@@ -1382,17 +1399,20 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cloudPowers,
         cloudMasters,
         cloudAuditLogs,
+        cloudCommLogs,
         cloudTemplates,
         cloudCampaigns,
         cloudOffers,
         cloudLeads,
         cloudAutomation,
         cloudSegments,
-        cloudUsers
+        cloudUsers,
+        cloudClinicSettings,
+        cloudRoleConfig
       ] = await Promise.all([
         loadCloudCollection<Patient>('patients'),
         loadCloudCollection<Customer>('customers'),
-        loadCloudCollection<Customer>('appointments' as any) as any,
+        loadCloudCollection<Appointment>('appointments'),
         loadCloudCollection<ClinicalVisit>('clinical_visits'),
         loadCloudCollection<SpectacleOrder>('spectacle_orders'),
         loadCloudCollection<RetailSale>('retail_sales'),
@@ -1401,6 +1421,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loadCloudCollection<LensMaster>('lenses'),
         loadCloudCollection<MedicineMaster>('medicines'),
         loadCloudCollection<StockMovement>('stock_movements'),
+        loadCloudCollection<PurchaseRecord>('purchases'),
+        loadCloudCollection<LensPurchaseRecord>('lens_purchases'),
+        loadCloudCollection<StockAdjustmentRecord>('stock_adjustments'),
+        loadCloudCollection<LensReturnRecord>('lens_returns'),
         loadCloudCollection<Supplier>('suppliers'),
         loadCloudCollection<Dealer>('dealers'),
         loadCloudCollection<PaymentRecord>('payments'),
@@ -1408,18 +1432,22 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loadCloudCollection<CustomerPowerRecord>('customer_powers'),
         loadCloudCollection<MasterRecord>('masters'),
         loadCloudCollection<AuditLog>('audit_logs'),
+        loadCloudCollection<CommunicationLog>('communication_logs'),
         loadCloudCollection<WhatsAppTemplate>('whatsapp_templates'),
         loadCloudCollection<MarketingCampaign>('marketing_campaigns'),
         loadCloudCollection<OfferPromotion>('marketing_offers'),
         loadCloudCollection<CrmLead>('crm_leads'),
         loadCloudCollection<AutomationRule>('automation_rules'),
         loadCloudCollection<CustomerSegmentRule>('custom_segments'),
-        loadCloudCollection<ERPUser>('users')
+        loadCloudCollection<ERPUser>('users'),
+        loadCloudDocument<ClinicSettings>('clinic_settings', 'main'),
+        loadCloudDocument<{ permissions: RolePermissionsMap }>('system_config', 'role_permissions')
       ]);
 
+      // Cloud-First: If Firestore has records, Firestore is the single source of truth and supersedes local cache
       if (cloudPatients.length > 0) setPatients(cloudPatients);
       if (cloudCustomers.length > 0) setCustomers(cloudCustomers);
-      if (cloudAppointments && (cloudAppointments as any).length > 0) setAppointments(cloudAppointments as any);
+      if (cloudAppointments.length > 0) setAppointments(cloudAppointments);
       if (cloudVisits.length > 0) setVisits(cloudVisits);
       if (cloudOrders.length > 0) setSpectacleOrders(cloudOrders);
       if (cloudRetail.length > 0) setRetailSales(cloudRetail);
@@ -1428,6 +1456,10 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (cloudLenses.length > 0) setLenses(cloudLenses);
       if (cloudMedicines.length > 0) setMedicines(cloudMedicines);
       if (cloudStockMov.length > 0) setStockMovements(cloudStockMov);
+      if (cloudPurchases.length > 0) setPurchases(cloudPurchases);
+      if (cloudLensPurchases.length > 0) setLensPurchases(cloudLensPurchases);
+      if (cloudStockAdjustments.length > 0) setStockAdjustments(cloudStockAdjustments);
+      if (cloudLensReturns.length > 0) setLensReturns(cloudLensReturns);
       if (cloudSuppliers.length > 0) setSuppliers(cloudSuppliers);
       if (cloudDealers.length > 0) setDealers(cloudDealers);
       if (cloudPayments.length > 0) setPayments(cloudPayments);
@@ -1435,6 +1467,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (cloudPowers.length > 0) setCustomerPowers(cloudPowers);
       if (cloudMasters.length > 0) setMasters(cloudMasters);
       if (cloudAuditLogs.length > 0) setAuditLogs(sanitizeAndDeduplicateAuditLogs(cloudAuditLogs));
+      if (cloudCommLogs.length > 0) setCommunicationLogs(cloudCommLogs);
       if (cloudTemplates.length > 0) setTemplates(cloudTemplates);
       if (cloudCampaigns.length > 0) setCampaigns(cloudCampaigns);
       if (cloudOffers.length > 0) setOffers(cloudOffers);
@@ -1442,298 +1475,284 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (cloudAutomation.length > 0) setAutomationRules(cloudAutomation);
       if (cloudSegments.length > 0) setCustomSegments(cloudSegments);
       if (cloudUsers.length > 0) setErpUsers(cloudUsers);
+      if (cloudClinicSettings && Object.keys(cloudClinicSettings).length > 0) {
+        setSettings(prev => ({ ...prev, ...cloudClinicSettings }));
+      }
+      if (cloudRoleConfig && cloudRoleConfig.permissions) {
+        setRolePermissions(cloudRoleConfig.permissions);
+      }
 
       setCloudSyncStatus('synced');
       setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     } catch (err) {
+      console.warn('Could not sync from Firestore:', err);
       setCloudSyncStatus('error');
     }
   };
 
-  const hasSeededRef = useRef<{ [key: string]: boolean }>({});
-
-  // REAL-TIME MULTI-DEVICE FIRESTORE SYNCHRONIZATION LISTENERS
+  // CLOUD-FIRST INITIALIZATION & MULTI-DEVICE REAL-TIME FIRESTORE LISTENERS
   useEffect(() => {
-    if (!firebaseUser) return;
-
-    setCloudSyncStatus('syncing');
+    let isCancelled = false;
     const unsubs: Array<() => void> = [];
 
-    // Patients real-time listener
-    unsubs.push(subscribeCloudCollection<Patient>('patients', (items) => {
-      if (items && items.length > 0) {
-        setPatients(items);
-        setCloudSyncStatus('synced');
-        setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      } else if (items && items.length === 0 && patients.length > 0 && !hasSeededRef.current.patients) {
-        hasSeededRef.current.patients = true;
-        patients.forEach(p => saveCloudDocument('patients', p.mrd, p));
-      }
-    }));
+    const initializeCloudSync = async () => {
+      setCloudSyncStatus('syncing');
+      try {
+        // 1. Ensure user is authenticated to Firebase Firestore
+        await ensureFirebaseAuth();
+        if (isCancelled) return;
 
-    // Appointments real-time listener
-    unsubs.push(subscribeCloudCollection<Appointment>('appointments', (items) => {
-      if (items && items.length > 0) {
-        setAppointments(items);
-        setCloudSyncStatus('synced');
-      } else if (items && items.length === 0 && appointments.length > 0 && !hasSeededRef.current.appointments) {
-        hasSeededRef.current.appointments = true;
-        appointments.forEach(a => saveCloudDocument('appointments', a.id, a));
-      }
-    }));
+        // 2. Cloud-First: Fetch latest Firestore data FIRST so Firestore always wins over stale local cache
+        await syncAllFromFirestore();
+        if (isCancelled) return;
 
-    // Clinical Visits real-time listener
-    unsubs.push(subscribeCloudCollection<ClinicalVisit>('clinical_visits', (items) => {
-      if (items && items.length > 0) {
-        setVisits(items);
-        setCloudSyncStatus('synced');
-      } else if (items && items.length === 0 && visits.length > 0 && !hasSeededRef.current.clinical_visits) {
-        hasSeededRef.current.clinical_visits = true;
-        visits.forEach(v => saveCloudDocument('clinical_visits', v.visitId, v));
-      }
-    }));
+        // 3. Attach real-time snapshot listeners for all ERP modules
+        // Patients
+        unsubs.push(subscribeCloudCollection<Patient>('patients', (items) => {
+          if (items && items.length > 0) {
+            setPatients(items);
+            setCloudSyncStatus('synced');
+            setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+          }
+        }));
 
-    // Spectacle Orders real-time listener
-    unsubs.push(subscribeCloudCollection<SpectacleOrder>('spectacle_orders', (items) => {
-      if (items && items.length > 0) {
-        setSpectacleOrders(items);
-        setCloudSyncStatus('synced');
-      } else if (items && items.length === 0 && spectacleOrders.length > 0 && !hasSeededRef.current.spectacle_orders) {
-        hasSeededRef.current.spectacle_orders = true;
-        spectacleOrders.forEach(o => saveCloudDocument('spectacle_orders', o.orderId, o));
-      }
-    }));
+        // Appointments
+        unsubs.push(subscribeCloudCollection<Appointment>('appointments', (items) => {
+          if (items && items.length > 0) {
+            setAppointments(items);
+            setCloudSyncStatus('synced');
+          }
+        }));
 
-    // Retail Sales real-time listener
-    unsubs.push(subscribeCloudCollection<RetailSale>('retail_sales', (items) => {
-      if (items && items.length > 0) {
-        setRetailSales(items);
-        setCloudSyncStatus('synced');
-      } else if (items && items.length === 0 && retailSales.length > 0 && !hasSeededRef.current.retail_sales) {
-        hasSeededRef.current.retail_sales = true;
-        retailSales.forEach(s => saveCloudDocument('retail_sales', s.invoiceNumber, s));
-      }
-    }));
+        // Clinical Visits
+        unsubs.push(subscribeCloudCollection<ClinicalVisit>('clinical_visits', (items) => {
+          if (items && items.length > 0) {
+            setVisits(items);
+            setCloudSyncStatus('synced');
+          }
+        }));
 
-    // Wholesale Sales real-time listener
-    unsubs.push(subscribeCloudCollection<WholesaleSale>('wholesale_sales', (items) => {
-      if (items && items.length > 0) {
-        setWholesaleSales(items);
-        setCloudSyncStatus('synced');
-      } else if (items && items.length === 0 && wholesaleSales.length > 0 && !hasSeededRef.current.wholesale_sales) {
-        hasSeededRef.current.wholesale_sales = true;
-        wholesaleSales.forEach(w => saveCloudDocument('wholesale_sales', w.invoiceNumber, w));
-      }
-    }));
+        // Spectacle Orders
+        unsubs.push(subscribeCloudCollection<SpectacleOrder>('spectacle_orders', (items) => {
+          if (items && items.length > 0) {
+            setSpectacleOrders(items);
+            setCloudSyncStatus('synced');
+          }
+        }));
 
-    // Customers real-time listener
-    unsubs.push(subscribeCloudCollection<Customer>('customers', (items) => {
-      if (items && items.length > 0) {
-        setCustomers(items);
-        setCloudSyncStatus('synced');
-      } else if (items && items.length === 0 && customers.length > 0 && !hasSeededRef.current.customers) {
-        hasSeededRef.current.customers = true;
-        customers.forEach(c => saveCloudDocument('customers', c.customerId, c));
-      }
-    }));
+        // Retail Sales
+        unsubs.push(subscribeCloudCollection<RetailSale>('retail_sales', (items) => {
+          if (items && items.length > 0) {
+            setRetailSales(items);
+            setCloudSyncStatus('synced');
+          }
+        }));
 
-    // Customer Powers real-time listener
-    unsubs.push(subscribeCloudCollection<CustomerPowerRecord>('customer_powers', (items) => {
-      if (items && items.length > 0) {
-        setCustomerPowers(items);
-      } else if (items && items.length === 0 && customerPowers.length > 0 && !hasSeededRef.current.customer_powers) {
-        hasSeededRef.current.customer_powers = true;
-        customerPowers.forEach(cp => saveCloudDocument('customer_powers', cp.powerId, cp));
-      }
-    }));
+        // Wholesale Sales
+        unsubs.push(subscribeCloudCollection<WholesaleSale>('wholesale_sales', (items) => {
+          if (items && items.length > 0) {
+            setWholesaleSales(items);
+            setCloudSyncStatus('synced');
+          }
+        }));
 
-    // Frames inventory real-time listener
-    unsubs.push(subscribeCloudCollection<FrameMaster>('frames', (items) => {
-      if (items && items.length > 0) {
-        setFrames(items);
-      } else if (items && items.length === 0 && frames.length > 0 && !hasSeededRef.current.frames) {
-        hasSeededRef.current.frames = true;
-        frames.forEach(f => saveCloudDocument('frames', f.sku, f));
-      }
-    }));
+        // Customers
+        unsubs.push(subscribeCloudCollection<Customer>('customers', (items) => {
+          if (items && items.length > 0) {
+            setCustomers(items);
+            setCloudSyncStatus('synced');
+          }
+        }));
 
-    // Lenses inventory real-time listener
-    unsubs.push(subscribeCloudCollection<LensMaster>('lenses', (items) => {
-      if (items && items.length > 0) {
-        setLenses(items);
-      } else if (items && items.length === 0 && lenses.length > 0 && !hasSeededRef.current.lenses) {
-        hasSeededRef.current.lenses = true;
-        lenses.forEach(l => saveCloudDocument('lenses', l.lensCode, l));
-      }
-    }));
+        // Customer Powers
+        unsubs.push(subscribeCloudCollection<CustomerPowerRecord>('customer_powers', (items) => {
+          if (items && items.length > 0) {
+            setCustomerPowers(items);
+          }
+        }));
 
-    // Medicines real-time listener
-    unsubs.push(subscribeCloudCollection<MedicineMaster>('medicines', (items) => {
-      if (items && items.length > 0) {
-        setMedicines(items);
-      } else if (items && items.length === 0 && medicines.length > 0 && !hasSeededRef.current.medicines) {
-        hasSeededRef.current.medicines = true;
-        medicines.forEach(m => saveCloudDocument('medicines', m.id, m));
-      }
-    }));
+        // Frames
+        unsubs.push(subscribeCloudCollection<FrameMaster>('frames', (items) => {
+          if (items && items.length > 0) {
+            setFrames(items);
+          }
+        }));
 
-    // Stock Movements ledger real-time listener
-    unsubs.push(subscribeCloudCollection<StockMovement>('stock_movements', (items) => {
-      if (items && items.length > 0) {
-        setStockMovements(items);
-      } else if (items && items.length === 0 && stockMovements.length > 0 && !hasSeededRef.current.stock_movements) {
-        hasSeededRef.current.stock_movements = true;
-        stockMovements.forEach(sm => saveCloudDocument('stock_movements', sm.id, sm));
-      }
-    }));
+        // Lenses
+        unsubs.push(subscribeCloudCollection<LensMaster>('lenses', (items) => {
+          if (items && items.length > 0) {
+            setLenses(items);
+          }
+        }));
 
-    // Payments ledger real-time listener
-    unsubs.push(subscribeCloudCollection<PaymentRecord>('payments', (items) => {
-      if (items && items.length > 0) {
-        setPayments(items);
-      } else if (items && items.length === 0 && payments.length > 0 && !hasSeededRef.current.payments) {
-        hasSeededRef.current.payments = true;
-        payments.forEach(p => saveCloudDocument('payments', p.paymentId, p));
-      }
-    }));
+        // Medicines
+        unsubs.push(subscribeCloudCollection<MedicineMaster>('medicines', (items) => {
+          if (items && items.length > 0) {
+            setMedicines(items);
+          }
+        }));
 
-    // Loyalty Ledger real-time listener
-    unsubs.push(subscribeCloudCollection<LoyaltyTransaction>('loyalty_logs', (items) => {
-      if (items && items.length > 0) {
-        setLoyaltyLogs(items);
-      } else if (items && items.length === 0 && loyaltyLogs.length > 0 && !hasSeededRef.current.loyalty_logs) {
-        hasSeededRef.current.loyalty_logs = true;
-        loyaltyLogs.forEach(ll => saveCloudDocument('loyalty_logs', ll.id, ll));
-      }
-    }));
+        // Central Stock Ledger (Stock Movements)
+        unsubs.push(subscribeCloudCollection<StockMovement>('stock_movements', (items) => {
+          if (items && items.length > 0) {
+            setStockMovements(items);
+          }
+        }));
 
-    // Stock Adjustments real-time listener
-    unsubs.push(subscribeCloudCollection<StockAdjustmentRecord>('stock_adjustments', (items) => {
-      if (items && items.length > 0) {
-        setStockAdjustments(items);
-      }
-    }));
+        // Purchases
+        unsubs.push(subscribeCloudCollection<PurchaseRecord>('purchases', (items) => {
+          if (items && items.length > 0) {
+            setPurchases(items);
+          }
+        }));
 
-    // Lens Returns real-time listener
-    unsubs.push(subscribeCloudCollection<LensReturnRecord>('lens_returns', (items) => {
-      if (items && items.length > 0) {
-        setLensReturns(items);
-      }
-    }));
+        // Payments
+        unsubs.push(subscribeCloudCollection<PaymentRecord>('payments', (items) => {
+          if (items && items.length > 0) {
+            setPayments(items);
+          }
+        }));
 
-    // Lens Purchases real-time listener
-    unsubs.push(subscribeCloudCollection<LensPurchaseRecord>('lens_purchases', (items) => {
-      if (items && items.length > 0) {
-        setLensPurchases(items);
-      }
-    }));
+        // Loyalty Logs
+        unsubs.push(subscribeCloudCollection<LoyaltyTransaction>('loyalty_logs', (items) => {
+          if (items && items.length > 0) {
+            setLoyaltyLogs(items);
+          }
+        }));
 
-    // Suppliers real-time listener
-    unsubs.push(subscribeCloudCollection<Supplier>('suppliers', (items) => {
-      if (items && items.length > 0) {
-        setSuppliers(items);
-      } else if (items && items.length === 0 && suppliers.length > 0 && !hasSeededRef.current.suppliers) {
-        hasSeededRef.current.suppliers = true;
-        suppliers.forEach(s => saveCloudDocument('suppliers', s.supplierId, s));
-      }
-    }));
+        // Stock Adjustments
+        unsubs.push(subscribeCloudCollection<StockAdjustmentRecord>('stock_adjustments', (items) => {
+          if (items && items.length > 0) {
+            setStockAdjustments(items);
+          }
+        }));
 
-    // Dealers real-time listener
-    unsubs.push(subscribeCloudCollection<Dealer>('dealers', (items) => {
-      if (items && items.length > 0) {
-        setDealers(items);
-      } else if (items && items.length === 0 && dealers.length > 0 && !hasSeededRef.current.dealers) {
-        hasSeededRef.current.dealers = true;
-        dealers.forEach(d => saveCloudDocument('dealers', d.dealerId, d));
-      }
-    }));
+        // Lens Returns
+        unsubs.push(subscribeCloudCollection<LensReturnRecord>('lens_returns', (items) => {
+          if (items && items.length > 0) {
+            setLensReturns(items);
+          }
+        }));
 
-    // Masters real-time listener
-    unsubs.push(subscribeCloudCollection<MasterRecord>('masters', (items) => {
-      if (items && items.length > 0) {
-        setMasters(items);
-      } else if (items && items.length === 0 && masters.length > 0 && !hasSeededRef.current.masters) {
-        hasSeededRef.current.masters = true;
-        masters.forEach(m => saveCloudDocument('masters', m.id, m));
-      }
-    }));
+        // Lens Purchases
+        unsubs.push(subscribeCloudCollection<LensPurchaseRecord>('lens_purchases', (items) => {
+          if (items && items.length > 0) {
+            setLensPurchases(items);
+          }
+        }));
 
-    // WhatsApp Templates real-time listener
-    unsubs.push(subscribeCloudCollection<WhatsAppTemplate>('whatsapp_templates', (items) => {
-      if (items && items.length > 0) {
-        setTemplates(items);
-      }
-    }));
+        // Suppliers
+        unsubs.push(subscribeCloudCollection<Supplier>('suppliers', (items) => {
+          if (items && items.length > 0) {
+            setSuppliers(items);
+          }
+        }));
 
-    // Marketing Campaigns real-time listener
-    unsubs.push(subscribeCloudCollection<MarketingCampaign>('marketing_campaigns', (items) => {
-      if (items && items.length > 0) {
-        setCampaigns(items);
-      }
-    }));
+        // Dealers
+        unsubs.push(subscribeCloudCollection<Dealer>('dealers', (items) => {
+          if (items && items.length > 0) {
+            setDealers(items);
+          }
+        }));
 
-    // Marketing Offers real-time listener
-    unsubs.push(subscribeCloudCollection<OfferPromotion>('marketing_offers', (items) => {
-      if (items && items.length > 0) {
-        setOffers(items);
-      }
-    }));
+        // Masters
+        unsubs.push(subscribeCloudCollection<MasterRecord>('masters', (items) => {
+          if (items && items.length > 0) {
+            setMasters(items);
+          }
+        }));
 
-    // CRM Leads real-time listener
-    unsubs.push(subscribeCloudCollection<CrmLead>('crm_leads', (items) => {
-      if (items && items.length > 0) {
-        setLeads(items);
-      }
-    }));
+        // Communication Logs
+        unsubs.push(subscribeCloudCollection<CommunicationLog>('communication_logs', (items) => {
+          if (items && items.length > 0) {
+            setCommunicationLogs(items);
+          }
+        }));
 
-    // Automation Rules real-time listener
-    unsubs.push(subscribeCloudCollection<AutomationRule>('automation_rules', (items) => {
-      if (items && items.length > 0) {
-        setAutomationRules(items);
-      }
-    }));
+        // WhatsApp Templates
+        unsubs.push(subscribeCloudCollection<WhatsAppTemplate>('whatsapp_templates', (items) => {
+          if (items && items.length > 0) {
+            setTemplates(items);
+          }
+        }));
 
-    // Custom Segments real-time listener
-    unsubs.push(subscribeCloudCollection<CustomerSegmentRule>('custom_segments', (items) => {
-      if (items && items.length > 0) {
-        setCustomSegments(items);
-      }
-    }));
+        // Marketing Campaigns
+        unsubs.push(subscribeCloudCollection<MarketingCampaign>('marketing_campaigns', (items) => {
+          if (items && items.length > 0) {
+            setCampaigns(items);
+          }
+        }));
 
-    // ERP Users real-time listener
-    unsubs.push(subscribeCloudCollection<ERPUser>('users', (items) => {
-      if (items && items.length > 0) {
-        setErpUsers(items);
-      }
-    }));
+        // Marketing Offers
+        unsubs.push(subscribeCloudCollection<OfferPromotion>('marketing_offers', (items) => {
+          if (items && items.length > 0) {
+            setOffers(items);
+          }
+        }));
 
-    // Audit Logs real-time listener
-    unsubs.push(subscribeCloudCollection<AuditLog>('audit_logs', (items) => {
-      if (items && items.length > 0) {
-        setAuditLogs(sanitizeAndDeduplicateAuditLogs(items));
-      }
-    }));
+        // CRM Leads
+        unsubs.push(subscribeCloudCollection<CrmLead>('crm_leads', (items) => {
+          if (items && items.length > 0) {
+            setLeads(items);
+          }
+        }));
 
-    // Clinic Settings real-time listener (doc 'main' in 'clinic_settings')
-    unsubs.push(subscribeCloudDocument<ClinicSettings>('clinic_settings', 'main', (docData) => {
-      if (docData && Object.keys(docData).length > 0) {
-        setSettings(prev => ({ ...prev, ...docData }));
-      }
-    }));
+        // Automation Rules
+        unsubs.push(subscribeCloudCollection<AutomationRule>('automation_rules', (items) => {
+          if (items && items.length > 0) {
+            setAutomationRules(items);
+          }
+        }));
 
-    // Role Permissions real-time listener (doc 'role_permissions' in 'system_config')
-    unsubs.push(subscribeCloudDocument<{ permissions: RolePermissionsMap }>('system_config', 'role_permissions', (docData) => {
-      if (docData && docData.permissions) {
-        setRolePermissions(docData.permissions);
+        // Custom Segments
+        unsubs.push(subscribeCloudCollection<CustomerSegmentRule>('custom_segments', (items) => {
+          if (items && items.length > 0) {
+            setCustomSegments(items);
+          }
+        }));
+
+        // ERP Users
+        unsubs.push(subscribeCloudCollection<ERPUser>('users', (items) => {
+          if (items && items.length > 0) {
+            setErpUsers(items);
+          }
+        }));
+
+        // Audit Logs
+        unsubs.push(subscribeCloudCollection<AuditLog>('audit_logs', (items) => {
+          if (items && items.length > 0) {
+            setAuditLogs(sanitizeAndDeduplicateAuditLogs(items));
+          }
+        }));
+
+        // Clinic Settings real-time listener (doc 'main' in 'clinic_settings')
+        unsubs.push(subscribeCloudDocument<ClinicSettings>('clinic_settings', 'main', (docData) => {
+          if (docData && Object.keys(docData).length > 0) {
+            setSettings(prev => ({ ...prev, ...docData }));
+          }
+        }));
+
+        // Role Permissions real-time listener (doc 'role_permissions' in 'system_config')
+        unsubs.push(subscribeCloudDocument<{ permissions: RolePermissionsMap }>('system_config', 'role_permissions', (docData) => {
+          if (docData && docData.permissions) {
+            setRolePermissions(docData.permissions);
+          }
+        }));
+      } catch (err) {
+        console.error('Failed to initialize cloud synchronization:', err);
+        setCloudSyncStatus('offline');
       }
-    }));
+    };
+
+    initializeCloudSync();
 
     return () => {
+      isCancelled = true;
       unsubs.forEach(unsub => {
         try { unsub(); } catch (_) {}
       });
     };
-  }, [firebaseUser]);
+  }, []);
 
   // Auto persist on changes
   useEffect(() => { setStored('ROLE', role); }, [role]);
@@ -1755,6 +1774,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { setStored('STOCK_ADJUSTMENTS', stockAdjustments); }, [stockAdjustments]);
   useEffect(() => { setStored('LENS_RETURNS', lensReturns); }, [lensReturns]);
   useEffect(() => { setStored('LENS_PURCHASES', lensPurchases); }, [lensPurchases]);
+  useEffect(() => { setStored('PURCHASES', purchases); }, [purchases]);
   useEffect(() => { setStored('PAYMENTS', payments); }, [payments]);
   useEffect(() => { setStored('AUDIT_LOGS', auditLogs); }, [auditLogs]);
   useEffect(() => { setStored('WHATSAPP_TEMPLATES', templates); }, [templates]);
@@ -2734,7 +2754,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (f.sku === newOrder.frameSku) {
             const nextStock = Math.max(0, f.currentStock - (newOrder.quantity || 1));
             const nextStatus = nextStock === 0 ? 'Out of Stock' : nextStock <= f.reorderLevel ? 'Low Stock' : 'Available';
-            return { ...f, currentStock: nextStock, status: nextStatus };
+            const updated = { ...f, currentStock: nextStock, status: nextStatus };
+            persistToCloud('frames', updated.sku, updated);
+            return updated;
           }
           return f;
         })
@@ -2758,6 +2780,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         timestamp: new Date().toISOString()
       };
       setStockMovements(prev => [movement1, ...prev]);
+      persistToCloud('stock_movements', movement1.id, movement1);
     }
 
     // 2. Decrement Lens Stock (Only if not manual lens)
@@ -2773,7 +2796,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (l.lensCode === odSku) {
                 const nextStock = Math.max(0, l.currentStock - orderQty);
                 const nextStatus = nextStock === 0 ? 'Out of Stock' : nextStock <= l.reorderLevel ? 'Low Stock' : 'Available';
-                return { ...l, currentStock: nextStock, status: nextStatus };
+                const updated = { ...l, currentStock: nextStock, status: nextStatus };
+                persistToCloud('lenses', updated.lensCode, updated);
+                return updated;
               }
               return l;
             })
@@ -2795,15 +2820,18 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             timestamp: new Date().toISOString()
           };
           setStockMovements(prev => [movOD, ...prev]);
+          persistToCloud('stock_movements', movOD.id, movOD);
         }
 
-        if (osSku && osSku !== odSku) {
+        if (osSku) {
           setLenses(prev =>
             prev.map(l => {
               if (l.lensCode === osSku) {
                 const nextStock = Math.max(0, l.currentStock - orderQty);
                 const nextStatus = nextStock === 0 ? 'Out of Stock' : nextStock <= l.reorderLevel ? 'Low Stock' : 'Available';
-                return { ...l, currentStock: nextStock, status: nextStatus };
+                const updated = { ...l, currentStock: nextStock, status: nextStatus };
+                persistToCloud('lenses', updated.lensCode, updated);
+                return updated;
               }
               return l;
             })
@@ -2825,18 +2853,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             timestamp: new Date().toISOString()
           };
           setStockMovements(prev => [movOS, ...prev]);
-        } else if (osSku && osSku === odSku) {
-          // Both eyes share SKU
-          setLenses(prev =>
-            prev.map(l => {
-              if (l.lensCode === osSku) {
-                const nextStock = Math.max(0, l.currentStock - orderQty * 2);
-                const nextStatus = nextStock === 0 ? 'Out of Stock' : nextStock <= l.reorderLevel ? 'Low Stock' : 'Available';
-                return { ...l, currentStock: nextStock, status: nextStatus };
-              }
-              return l;
-            })
-          );
+          persistToCloud('stock_movements', movOS.id, movOS);
         }
       } else if (newOrder.lensCode) {
         setLenses(prev =>
@@ -2844,7 +2861,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (l.lensCode === newOrder.lensCode) {
               const nextStock = Math.max(0, l.currentStock - orderQty * 2);
               const nextStatus = nextStock === 0 ? 'Out of Stock' : nextStock <= l.reorderLevel ? 'Low Stock' : 'Available';
-              return { ...l, currentStock: nextStock, status: nextStatus };
+              const updated = { ...l, currentStock: nextStock, status: nextStatus };
+              persistToCloud('lenses', updated.lensCode, updated);
+              return updated;
             }
             return l;
           })
@@ -2866,6 +2885,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           timestamp: new Date().toISOString()
         };
         setStockMovements(prev => [movement2, ...prev]);
+        persistToCloud('stock_movements', movement2.id, movement2);
       }
     }
 
@@ -2903,6 +2923,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cashier: `${role} Desk`
     };
     setRetailSales(prev => [newSale, ...prev]);
+    persistToCloud('retail_sales', invoiceNum, newSale);
 
     // 4. Record advance payment if > 0
     if (newOrder.advance > 0) {
@@ -2919,6 +2940,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notes: `Advance for Spectacle Order ${orderId}`
       };
       setPayments(prev => [payment, ...prev]);
+      persistToCloud('payments', payment.paymentId, payment);
     }
 
     // 5. Save Power Snapshot to Customer Eye Power History
@@ -2952,6 +2974,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notes: `Recorded during Spectacle Order ${orderId}`
       };
       setCustomerPowers(prev => [pwrRecord, ...prev]);
+      persistToCloud('customer_powers', pwrRecord.powerId, pwrRecord);
     }
 
     // 6. Loyalty Points Calculation & Ledger Log
@@ -2999,6 +3022,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         monetaryValueRupees: loyaltyDiscRupees
       };
       setLoyaltyLogs(prev => [redeemLog, ...prev]);
+      persistToCloud('loyalty_logs', redeemLog.id, redeemLog);
     }
 
     // Log Earned Points
@@ -3019,6 +3043,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         appliedRuleSnapshot: pointsCalc.appliedRuleSnapshot
       };
       setLoyaltyLogs(prev => [earnedLog, ...prev]);
+      persistToCloud('loyalty_logs', earnedLog.id, earnedLog);
     }
 
     // 7. Update or Create Unified Customer Profile
@@ -3027,41 +3052,44 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const profileData = newOrder.customerProfileData || {};
 
       if (match) {
-        return prev.map(c =>
-          (c.mobile === newOrder.mobile || (newOrder.mrd && c.mrd === newOrder.mrd))
-            ? {
-                ...c,
-                name: newOrder.customerName || c.name,
-                mrd: newOrder.mrd || c.mrd,
-                whatsapp: profileData.whatsapp || newOrder.whatsapp || c.whatsapp || newOrder.mobile,
-                age: profileData.age !== undefined ? profileData.age : (newOrder.age || c.age),
-                gender: profileData.gender || newOrder.gender || c.gender,
-                fatherHusbandName: profileData.fatherHusbandName || profileData.fatherName || c.fatherHusbandName || c.fatherName,
-                occupation: profileData.occupation || profileData.profession || c.occupation || c.profession,
-                address: profileData.fullAddress || profileData.address || newOrder.address || c.address,
-                fullAddress: profileData.fullAddress || profileData.address || newOrder.address || c.fullAddress || c.address,
-                village: profileData.village || c.village,
-                postOffice: profileData.postOffice || c.postOffice,
-                policeStation: profileData.policeStation || c.policeStation,
-                district: profileData.district || c.district,
-                state: profileData.state || c.state,
-                pinCode: profileData.pinCode || c.pinCode,
-                email: profileData.email || c.email,
-                maritalStatus: profileData.maritalStatus || c.maritalStatus,
-                anniversaryDate: profileData.anniversaryDate || profileData.marriageAnniversary || c.anniversaryDate,
-                referredBy: profileData.referredBy || c.referredBy,
-                emergencyContact: profileData.emergencyContact || profileData.altMobile || c.emergencyContact || c.altMobile,
-                notes: profileData.notes ? `${c.notes ? c.notes + ' | ' : ''}${profileData.notes}` : c.notes,
-                totalPurchases: (c.totalPurchases || 0) + 1,
-                lifetimeValue: (c.lifetimeValue || 0) + newOrder.total,
-                outstandingDue: (c.outstandingDue || 0) + newOrder.due,
-                loyaltyPoints: finalCustPoints,
-                lastPurchaseDate: today,
-                nextAction: `Deliver order ${orderId} on ${newOrder.deliveryDate}`,
-                segment: 'Spectacle Buyer'
-              }
-            : c
-        );
+        return prev.map(c => {
+          if (c.mobile === newOrder.mobile || (newOrder.mrd && c.mrd === newOrder.mrd)) {
+            const updatedCust = {
+              ...c,
+              name: newOrder.customerName || c.name,
+              mrd: newOrder.mrd || c.mrd,
+              whatsapp: profileData.whatsapp || newOrder.whatsapp || c.whatsapp || newOrder.mobile,
+              age: profileData.age !== undefined ? profileData.age : (newOrder.age || c.age),
+              gender: profileData.gender || newOrder.gender || c.gender,
+              fatherHusbandName: profileData.fatherHusbandName || profileData.fatherName || c.fatherHusbandName || c.fatherName,
+              occupation: profileData.occupation || profileData.profession || c.occupation || c.profession,
+              address: profileData.fullAddress || profileData.address || newOrder.address || c.address,
+              fullAddress: profileData.fullAddress || profileData.address || newOrder.address || c.fullAddress || c.address,
+              village: profileData.village || c.village,
+              postOffice: profileData.postOffice || c.postOffice,
+              policeStation: profileData.policeStation || c.policeStation,
+              district: profileData.district || c.district,
+              state: profileData.state || c.state,
+              pinCode: profileData.pinCode || c.pinCode,
+              email: profileData.email || c.email,
+              maritalStatus: profileData.maritalStatus || c.maritalStatus,
+              anniversaryDate: profileData.anniversaryDate || profileData.marriageAnniversary || c.anniversaryDate,
+              referredBy: profileData.referredBy || c.referredBy,
+              emergencyContact: profileData.emergencyContact || profileData.altMobile || c.emergencyContact || c.altMobile,
+              notes: profileData.notes ? `${c.notes ? c.notes + ' | ' : ''}${profileData.notes}` : c.notes,
+              totalPurchases: (c.totalPurchases || 0) + 1,
+              lifetimeValue: (c.lifetimeValue || 0) + newOrder.total,
+              outstandingDue: (c.outstandingDue || 0) + newOrder.due,
+              loyaltyPoints: finalCustPoints,
+              lastPurchaseDate: today,
+              nextAction: `Deliver order ${orderId} on ${newOrder.deliveryDate}`,
+              segment: 'Spectacle Buyer'
+            };
+            persistToCloud('customers', updatedCust.customerId, updatedCust);
+            return updatedCust;
+          }
+          return c;
+        });
       } else {
         const generatedCustId = `CUST-${5000 + prev.length + 1}`;
         const newC: Customer = {
@@ -3103,6 +3131,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           segment: 'Spectacle Buyer',
           status: 'Active'
         };
+        persistToCloud('customers', newC.customerId, newC);
         return [newC, ...prev];
       }
     });
@@ -3152,6 +3181,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notes: options.newPayment.notes || `Payment installment for Spectacle Order ${updatedOrder.orderId}`
       };
       setPayments(prev => [payRecord, ...prev]);
+      persistToCloud('payments', payRecord.paymentId, payRecord);
     }
 
     const computedDue = Math.max(0, netTotal - totalPaid);
@@ -3307,11 +3337,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           prev.map(f => {
             if (f.sku === item.code) {
               const nextStock = Math.max(0, f.currentStock - item.quantity);
-              return {
+              const updated = {
                 ...f,
                 currentStock: nextStock,
                 status: nextStock === 0 ? 'Out of Stock' : nextStock <= f.reorderLevel ? 'Low Stock' : 'Available'
               };
+              persistToCloud('frames', updated.sku, updated);
+              return updated;
             }
             return f;
           })
@@ -3321,13 +3353,31 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           prev.map(l => {
             if (l.lensCode === item.code) {
               const nextStock = Math.max(0, l.currentStock - item.quantity);
-              return {
+              const updated = {
                 ...l,
                 currentStock: nextStock,
                 status: nextStock === 0 ? 'Out of Stock' : nextStock <= l.reorderLevel ? 'Low Stock' : 'Available'
               };
+              persistToCloud('lenses', updated.lensCode, updated);
+              return updated;
             }
             return l;
+          })
+        );
+      } else if (item.itemType === 'Medicine') {
+        setMedicines(prev =>
+          prev.map(m => {
+            if (m.id === item.code || m.name.toLowerCase() === item.name.toLowerCase()) {
+              const nextStock = Math.max(0, m.currentStock - item.quantity);
+              const updated = {
+                ...m,
+                currentStock: nextStock,
+                status: (nextStock === 0 ? 'Out of Stock' : nextStock <= m.reorderLevel ? 'Low Stock' : 'Available') as any
+              };
+              persistToCloud('medicines', updated.id, updated);
+              return updated;
+            }
+            return m;
           })
         );
       }
@@ -3336,7 +3386,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const mov: StockMovement = {
         id: `MOV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 100)}`,
         date: today,
-        itemType: item.itemType === 'Frame' ? 'Frame' : item.itemType === 'Lens' ? 'Lens' : 'Accessory',
+        itemType: item.itemType === 'Frame' ? 'Frame' : item.itemType === 'Lens' ? 'Lens' : item.itemType === 'Medicine' ? 'Medicine' : 'Accessory',
         itemCode: item.code,
         itemName: item.name,
         movementType: 'Retail Sale',
@@ -3349,6 +3399,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         timestamp: new Date().toISOString()
       };
       setStockMovements(prev => [mov, ...prev]);
+      persistToCloud('stock_movements', mov.id, mov);
     });
 
     // If paid > 0, record payment
@@ -3366,6 +3417,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notes: `Retail Sale ${invoiceNum}`
       };
       setPayments(prev => [payment, ...prev]);
+      persistToCloud('payments', payment.paymentId, payment);
     }
 
     // Loyalty Points Calculation & Ledger Log
@@ -3416,24 +3468,28 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         appliedRuleSnapshot: pointsCalc.appliedRuleSnapshot
       };
       setLoyaltyLogs(prev => [earnedLog, ...prev]);
+      persistToCloud('loyalty_logs', earnedLog.id, earnedLog);
     }
 
     // Update Customer
     setCustomers(prev => {
       const match = prev.find(c => c.mobile === newSale.mobile);
       if (match) {
-        return prev.map(c =>
-          c.mobile === newSale.mobile
-            ? {
-                ...c,
-                totalPurchases: c.totalPurchases + 1,
-                lifetimeValue: c.lifetimeValue + newSale.grandTotal,
-                outstandingDue: c.outstandingDue + newSale.due,
-                loyaltyPoints: finalCustPoints,
-                lastPurchaseDate: today
-              }
-            : c
-        );
+        return prev.map(c => {
+          if (c.mobile === newSale.mobile) {
+            const updated = {
+              ...c,
+              totalPurchases: c.totalPurchases + 1,
+              lifetimeValue: c.lifetimeValue + newSale.grandTotal,
+              outstandingDue: c.outstandingDue + newSale.due,
+              loyaltyPoints: finalCustPoints,
+              lastPurchaseDate: today
+            };
+            persistToCloud('customers', updated.customerId, updated);
+            return updated;
+          }
+          return c;
+        });
       }
       return prev;
     });
@@ -3573,6 +3629,21 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setPayments(prev => [payRecord, ...prev]);
       persistToCloud('payments', payRecord.paymentId, payRecord);
+
+      // Synchronize customer outstandingDue to cloud
+      setCustomers(prev =>
+        prev.map(c => {
+          const isTarget = c.customerId === matchedOrder.customerId || c.mobile === matchedOrder.mobile || (matchedOrder.mrd && c.mrd === matchedOrder.mrd);
+          if (isTarget) {
+            const nextDueAmount = Math.max(0, (c.outstandingDue || 0) - amount);
+            const updated = { ...c, outstandingDue: nextDueAmount };
+            persistToCloud('customers', c.customerId, updated);
+            return updated;
+          }
+          return c;
+        })
+      );
+
       addAuditLog('COLLECT_DUE', 'Billing', invoiceOrOrderId, `Collected ₹${amount} due for ${invoiceOrOrderId} from ${matchedOrder.customerName}`);
       showToast(`Due payment of ₹${amount} recorded for ${invoiceOrOrderId}!`, 'success');
       return;
@@ -3613,6 +3684,21 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setPayments(prev => [payRecord, ...prev]);
       persistToCloud('payments', payRecord.paymentId, payRecord);
+
+      // Synchronize customer outstandingDue to cloud
+      setCustomers(prev =>
+        prev.map(c => {
+          const isTarget = c.customerId === matchedSale.mrdOrCustomerId || c.mobile === matchedSale.mobile;
+          if (isTarget) {
+            const nextDueAmount = Math.max(0, (c.outstandingDue || 0) - amount);
+            const updated = { ...c, outstandingDue: nextDueAmount };
+            persistToCloud('customers', c.customerId, updated);
+            return updated;
+          }
+          return c;
+        })
+      );
+      persistToCloud('payments', payRecord.paymentId, payRecord);
       addAuditLog('COLLECT_DUE', 'Billing', invoiceOrOrderId, `Collected ₹${amount} due for ${invoiceOrOrderId} from ${matchedSale.customerName}`);
       showToast(`Due payment of ₹${amount} recorded for ${invoiceOrOrderId}!`, 'success');
       return;
@@ -3644,11 +3730,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           prev.map(f => {
             if (f.sku === it.itemCode) {
               const nextStock = f.currentStock + it.quantity;
-              return {
+              const updated = {
                 ...f,
                 currentStock: nextStock,
-                status: nextStock > f.reorderLevel ? 'Available' : 'Low Stock'
+                status: (nextStock > f.reorderLevel ? 'Available' : 'Low Stock') as any
               };
+              persistToCloud('frames', f.sku, updated);
+              return updated;
             }
             return f;
           })
@@ -3658,13 +3746,31 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           prev.map(l => {
             if (l.lensCode === it.itemCode) {
               const nextStock = l.currentStock + it.quantity;
-              return {
+              const updated = {
                 ...l,
                 currentStock: nextStock,
-                status: nextStock > l.reorderLevel ? 'Available' : 'Low Stock'
+                status: (nextStock > l.reorderLevel ? 'Available' : 'Low Stock') as any
               };
+              persistToCloud('lenses', l.lensCode, updated);
+              return updated;
             }
             return l;
+          })
+        );
+      } else if (it.itemType === 'Medicine') {
+        setMedicines(prev =>
+          prev.map(m => {
+            if (m.id === it.itemCode || m.name.toLowerCase() === it.itemName.toLowerCase()) {
+              const nextStock = m.currentStock + it.quantity;
+              const updated = {
+                ...m,
+                currentStock: nextStock,
+                status: (nextStock > m.reorderLevel ? 'Available' : 'Low Stock') as any
+              };
+              persistToCloud('medicines', m.id, updated);
+              return updated;
+            }
+            return m;
           })
         );
       }
@@ -3686,13 +3792,74 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         timestamp: new Date().toISOString()
       };
       setStockMovements(prev => [mov, ...prev]);
+      persistToCloud('stock_movements', mov.id, mov);
     });
 
     // Update supplier balance
     const dueAmount = Math.max(0, grandTotal - paidAmount);
     setSuppliers(prev =>
-      prev.map(s => (s.supplierId === supplierId ? { ...s, currentDue: s.currentDue + dueAmount } : s))
+      prev.map(s => {
+        if (s.supplierId === supplierId) {
+          const updated = { ...s, currentDue: s.currentDue + dueAmount };
+          persistToCloud('suppliers', supplierId, updated);
+          return updated;
+        }
+        return s;
+      })
     );
+
+    // Save purchase record to Firestore
+    const newPurchase: PurchaseRecord = {
+      purchaseId: poId,
+      invoiceNo: invoiceNo,
+      invoiceNumber: invoiceNo,
+      supplierId,
+      supplierName: supplier ? supplier.company : 'Supplier',
+      date: today,
+      items: items.map(it => ({
+        itemType: it.itemType,
+        itemCode: it.itemCode,
+        itemName: it.itemName,
+        quantity: it.quantity,
+        rate: it.purchaseRate,
+        purchaseRate: it.purchaseRate,
+        discount: it.discount,
+        taxPercent: it.taxPercent,
+        total: it.quantity * it.purchaseRate * (1 - it.discount / 100)
+      })),
+      subTotal: grandTotal,
+      discount: 0,
+      tax: 0,
+      taxTotal: 0,
+      total: grandTotal,
+      grandTotal,
+      paid: paidAmount,
+      paidAmount,
+      due: dueAmount,
+      dueAmount,
+      paymentMode,
+      status: dueAmount === 0 ? 'Paid' : paidAmount > 0 ? 'Partial' : 'Unpaid'
+    };
+    setPurchases(prev => [newPurchase, ...prev]);
+    persistToCloud('purchases', newPurchase.purchaseId, newPurchase);
+
+    // If paidAmount > 0, record payment
+    if (paidAmount > 0) {
+      const payment: PaymentRecord = {
+        paymentId: `PAY-PUR-${Date.now().toString().slice(-6)}`,
+        date: today,
+        customerId: supplierId,
+        customerName: supplier ? supplier.company : 'Supplier',
+        mobile: supplier?.phone || '',
+        invoiceNumber: poId,
+        amount: paidAmount,
+        paymentMode: (paymentMode as any) || 'Bank Transfer',
+        receivedBy: `${role} Admin`,
+        notes: `Purchase payment to ${supplier ? supplier.company : 'Supplier'} for invoice ${invoiceNo}`
+      };
+      setPayments(prev => [payment, ...prev]);
+      persistToCloud('payments', payment.paymentId, payment);
+    }
 
     addAuditLog('PURCHASE_STOCK', 'Inventory', poId, `Stock Purchase of ₹${grandTotal} from ${supplier ? supplier.company : 'Supplier'}`);
     showToast(`Purchase order ${poId} added! Stock increased.`);
@@ -3822,6 +3989,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString()
     };
     setStockMovements(prev => [mov, ...prev]);
+    persistToCloud('stock_movements', mov.id, mov);
     addAuditLog('PURCHASE_STOCK', 'Inventory', id, `Stock IN for ${purchaseData.lensCode} (${purchaseData.quantity} pairs from ${purchaseData.supplier})`);
     showToast(`Stock IN of ${purchaseData.quantity} pairs saved for ${purchaseData.lensCode}!`);
   };
@@ -4008,7 +4176,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setFrames(prev => prev.map(f => {
           if (f.sku === ord.frameSku) {
             const nextStock = f.currentStock + (ord.quantity || 1);
-            return { ...f, currentStock: nextStock, status: nextStock <= f.reorderLevel ? 'Low Stock' : 'Available' };
+            const updated = { ...f, currentStock: nextStock, status: (nextStock <= f.reorderLevel ? 'Low Stock' : 'Available') as any };
+            persistToCloud('frames', f.sku, updated);
+            return updated;
           }
           return f;
         }));
@@ -4028,6 +4198,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           timestamp: new Date().toISOString()
         };
         setStockMovements(prev => [mov, ...prev]);
+        persistToCloud('stock_movements', mov.id, mov);
       }
 
       if (!ord.isManualLens) {
@@ -4038,7 +4209,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setLenses(prev => prev.map(l => {
             if (l.lensCode === odSku) {
               const nextStock = l.currentStock + qty;
-              return { ...l, currentStock: nextStock, status: nextStock <= l.reorderLevel ? 'Low Stock' : 'Available' };
+              const updated = { ...l, currentStock: nextStock, status: (nextStock <= l.reorderLevel ? 'Low Stock' : 'Available') as any };
+              persistToCloud('lenses', l.lensCode, updated);
+              return updated;
             }
             return l;
           }));
@@ -4047,7 +4220,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setLenses(prev => prev.map(l => {
             if (l.lensCode === osSku) {
               const nextStock = l.currentStock + qty;
-              return { ...l, currentStock: nextStock, status: nextStock <= l.reorderLevel ? 'Low Stock' : 'Available' };
+              const updated = { ...l, currentStock: nextStock, status: (nextStock <= l.reorderLevel ? 'Low Stock' : 'Available') as any };
+              persistToCloud('lenses', l.lensCode, updated);
+              return updated;
             }
             return l;
           }));
@@ -4055,7 +4230,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setLenses(prev => prev.map(l => {
             if (l.lensCode === ord.lensCode) {
               const nextStock = l.currentStock + qty * 2;
-              return { ...l, currentStock: nextStock, status: nextStock <= l.reorderLevel ? 'Low Stock' : 'Available' };
+              const updated = { ...l, currentStock: nextStock, status: (nextStock <= l.reorderLevel ? 'Low Stock' : 'Available') as any };
+              persistToCloud('lenses', l.lensCode, updated);
+              return updated;
             }
             return l;
           }));
@@ -4115,6 +4292,9 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (newLedgerEntries.length > 0) {
       setLoyaltyLogs(prev => [...newLedgerEntries, ...prev]);
+      newLedgerEntries.forEach(entry => {
+        persistToCloud('loyalty_logs', entry.id, entry);
+      });
       setCustomers(prev =>
         prev.map(c => {
           const isTarget = (c.customerId === ord.customerId || c.mobile === ord.mobile || (ord.mrd && c.mrd === ord.mrd));
@@ -4141,26 +4321,70 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!ord) return;
 
     if (restoreStock && ord.status !== 'Cancelled') {
+      const today = new Date().toISOString().split('T')[0];
       if (!ord.isManualFrame && ord.frameSku) {
         setFrames(prev => prev.map(f => {
           if (f.sku === ord.frameSku) {
             const nextStock = f.currentStock + (ord.quantity || 1);
-            return { ...f, currentStock: nextStock, status: nextStock <= f.reorderLevel ? 'Low Stock' : 'Available' };
+            const updated = { ...f, currentStock: nextStock, status: (nextStock <= f.reorderLevel ? 'Low Stock' : 'Available') as any };
+            persistToCloud('frames', f.sku, updated);
+            return updated;
           }
           return f;
         }));
+        const mov: StockMovement = {
+          id: `MOV-DEL-${Date.now().toString().slice(-6)}-F`,
+          date: today,
+          itemType: 'Frame',
+          itemCode: ord.frameSku,
+          itemName: ord.frameBrand || ord.frameName || 'Frame',
+          movementType: 'Adjustment',
+          reference: orderId,
+          qtyIn: ord.quantity || 1,
+          qtyOut: 0,
+          balance: 0,
+          user: role,
+          notes: `Stock restored upon permanent deletion of order #${orderId}`,
+          timestamp: new Date().toISOString()
+        };
+        setStockMovements(prev => [mov, ...prev]);
+        persistToCloud('stock_movements', mov.id, mov);
       }
       if (!ord.isManualLens) {
         const odSku = ord.odMatchedLensSku;
         const osSku = ord.osMatchedLensSku;
         const qty = ord.quantity || 1;
         if (odSku) {
-          setLenses(prev => prev.map(l => l.lensCode === odSku ? { ...l, currentStock: l.currentStock + qty } : l));
+          setLenses(prev => prev.map(l => {
+            if (l.lensCode === odSku) {
+              const nextStock = l.currentStock + qty;
+              const updated = { ...l, currentStock: nextStock, status: (nextStock <= l.reorderLevel ? 'Low Stock' : 'Available') as any };
+              persistToCloud('lenses', l.lensCode, updated);
+              return updated;
+            }
+            return l;
+          }));
         }
         if (osSku && osSku !== odSku) {
-          setLenses(prev => prev.map(l => l.lensCode === osSku ? { ...l, currentStock: l.currentStock + qty } : l));
+          setLenses(prev => prev.map(l => {
+            if (l.lensCode === osSku) {
+              const nextStock = l.currentStock + qty;
+              const updated = { ...l, currentStock: nextStock, status: (nextStock <= l.reorderLevel ? 'Low Stock' : 'Available') as any };
+              persistToCloud('lenses', l.lensCode, updated);
+              return updated;
+            }
+            return l;
+          }));
         } else if (ord.lensCode) {
-          setLenses(prev => prev.map(l => l.lensCode === ord.lensCode ? { ...l, currentStock: l.currentStock + qty * 2 } : l));
+          setLenses(prev => prev.map(l => {
+            if (l.lensCode === ord.lensCode) {
+              const nextStock = l.currentStock + qty * 2;
+              const updated = { ...l, currentStock: nextStock, status: (nextStock <= l.reorderLevel ? 'Low Stock' : 'Available') as any };
+              persistToCloud('lenses', l.lensCode, updated);
+              return updated;
+            }
+            return l;
+          }));
         }
       }
     }
@@ -4530,6 +4754,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       appliedRuleSnapshot: `Manual adjustment (${type}) by ${role}`
     };
     setLoyaltyLogs(prev => [log, ...prev]);
+    persistToCloud('loyalty_logs', log.id, log);
     addAuditLog('ADJUST_LOYALTY', 'Billing', customerId, `Loyalty ${type}: ${points} pts (₹${monetaryVal}). New balance: ${newPoints} pts`);
     showToast(`Loyalty points updated! Current balance: ${newPoints}`);
   };
@@ -4540,13 +4765,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       : 'Default Settings';
     const newSummary = `Spend ₹${newLoyaltySettings.spendAmount}=${newLoyaltySettings.pointsEarned}pt, Redeem ${newLoyaltySettings.pointsForValue}pt=₹${newLoyaltySettings.valueInRupees}`;
 
-    setSettings(prev => ({
-      ...prev,
+    const updatedSettings: ClinicSettings = {
+      ...settings,
       loyaltySettings: newLoyaltySettings,
       loyaltyPointsPerHundred: newLoyaltySettings.pointsEarned,
       loyaltyPointValueRupees: newLoyaltySettings.valueInRupees,
       enableLoyaltyProgram: newLoyaltySettings.enabled
-    }));
+    };
+    setSettings(updatedSettings);
+    persistToCloud('clinic_settings', 'main', updatedSettings);
 
     addAuditLog('UPDATE', 'Settings', 'LOYALTY_SETTINGS', `Updated Loyalty & Rewards rules: ${newSummary}`, oldSummary, newSummary);
     showToast('Loyalty Program rules saved & updated successfully!');
@@ -4619,6 +4846,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         timestamp: new Date().toISOString()
       };
       setStockMovements(prev => [mov, ...prev]);
+      persistToCloud('stock_movements', mov.id, mov);
     });
 
     // 2. Update Dealer Total Purchase & Due
@@ -4699,6 +4927,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notes: notes || `Audit stock adjustment (${diff >= 0 ? '+' : ''}${diff})`
     };
     setStockAdjustments(prev => [adjRecord, ...prev]);
+    persistToCloud('stock_adjustments', adjRecord.id, adjRecord);
 
     const mov: StockMovement = {
       id: `MOV-ADJ-${Date.now().toString().slice(-6)}`,
@@ -4716,9 +4945,63 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString()
     };
     setStockMovements(prev => [mov, ...prev]);
+    persistToCloud('stock_movements', mov.id, mov);
 
     addAuditLog('ADJUST_LENS_STOCK', 'Inventory', lensCode, `Adjusted ${lensCode} stock from ${lens.currentStock} to ${physicalStock} (${reason})`);
     showToast(`Stock for ${lens.brand} adjusted to ${physicalStock} pcs`);
+  };
+
+  const adjustFrameStock = (sku: string, physicalStock: number, reason: StockAdjustmentRecord['reason'], notes?: string) => {
+    const frame = frames.find(f => f.sku === sku);
+    if (!frame) return;
+
+    const diff = physicalStock - frame.currentStock;
+    const nextStatus = physicalStock === 0 ? 'Out of Stock' : physicalStock <= frame.reorderLevel ? 'Low Stock' : 'Available';
+
+    const updatedFrame = { ...frame, currentStock: physicalStock, status: nextStatus as any };
+    setFrames(prev =>
+      prev.map(f => (f.sku === sku ? updatedFrame : f))
+    );
+    persistToCloud('frames', sku, updatedFrame);
+
+    const adjRecord: StockAdjustmentRecord = {
+      id: `ADJ-FRM-${Date.now().toString().slice(-6)}`,
+      date: new Date().toISOString().split('T')[0],
+      lensId: sku,
+      productCode: sku,
+      company: frame.brand,
+      brand: frame.brand,
+      power: `${frame.model} (${frame.color})`,
+      systemStock: frame.currentStock,
+      physicalStock,
+      difference: diff,
+      reason,
+      user: role,
+      notes: notes || `Audit frame stock adjustment (${diff >= 0 ? '+' : ''}${diff})`
+    };
+    setStockAdjustments(prev => [adjRecord, ...prev]);
+    persistToCloud('stock_adjustments', adjRecord.id, adjRecord);
+
+    const mov: StockMovement = {
+      id: `MOV-ADJ-${Date.now().toString().slice(-6)}`,
+      date: new Date().toISOString().split('T')[0],
+      itemType: 'Frame',
+      itemCode: sku,
+      itemName: `${frame.brand} ${frame.model}`,
+      movementType: 'Adjustment',
+      reference: adjRecord.id,
+      qtyIn: diff > 0 ? diff : 0,
+      qtyOut: diff < 0 ? Math.abs(diff) : 0,
+      balance: physicalStock,
+      user: role,
+      notes: `Frame stock adjustment: ${reason} (${notes || ''})`,
+      timestamp: new Date().toISOString()
+    };
+    setStockMovements(prev => [mov, ...prev]);
+    persistToCloud('stock_movements', mov.id, mov);
+
+    addAuditLog('UPDATE' as any, 'Inventory', sku, `Adjusted frame ${sku} stock from ${frame.currentStock} to ${physicalStock} (${reason})`);
+    showToast(`Stock for frame ${frame.brand} ${frame.model} adjusted to ${physicalStock} pcs`);
   };
 
   const createLensReturn = (ret: Omit<LensReturnRecord, 'id' | 'date'>): LensReturnRecord => {
@@ -4768,6 +5051,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         timestamp: new Date().toISOString()
       };
       setStockMovements(prev => [mov, ...prev]);
+      persistToCloud('stock_movements', mov.id, mov);
     }
 
     addAuditLog('LENS_RETURN', 'Inventory', id, `Processed return of ${ret.quantity} lenses from ${ret.partyName}`);
@@ -5387,6 +5671,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       stockAdjustments,
       lensReturns,
       lensPurchases,
+      purchases,
       payments,
       auditLogs,
       templates,
@@ -5430,6 +5715,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(data.stockAdjustments)) setStockAdjustments(data.stockAdjustments);
         if (Array.isArray(data.lensReturns)) setLensReturns(data.lensReturns);
         if (Array.isArray(data.lensPurchases)) setLensPurchases(data.lensPurchases);
+        if (Array.isArray(data.purchases)) setPurchases(data.purchases);
         if (Array.isArray(data.payments)) setPayments(data.payments);
         if (Array.isArray(data.auditLogs)) setAuditLogs(sanitizeAndDeduplicateAuditLogs(data.auditLogs));
         if (Array.isArray(data.templates)) setTemplates(data.templates);
@@ -5470,6 +5756,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStockAdjustments(INITIAL_STOCK_ADJUSTMENTS);
     setLensReturns(INITIAL_RETURNS);
     setLensPurchases(INITIAL_LENS_PURCHASES);
+    setPurchases([]);
     setPayments(INITIAL_PAYMENTS);
     setAuditLogs(INITIAL_AUDIT_LOGS);
     setTemplates(INITIAL_TEMPLATES);
@@ -5510,6 +5797,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         stockAdjustments,
         lensReturns,
         lensPurchases,
+        purchases,
         payments,
         auditLogs,
         settings,
@@ -5627,6 +5915,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adjustLoyaltyPoints,
         updateLoyaltySettings,
         adjustLensStock,
+        adjustFrameStock,
         createLensReturn,
         linkPatientAndCustomer,
         updateSettings,

@@ -351,6 +351,12 @@ service cloud.firestore {
       allow delete: if canAccess('WhatsApp CRM', 'delete', false);
     }
 
+    match /communication_logs/{docId} {
+      allow read: if canAccess('WhatsApp CRM', 'view', true);
+      allow create, update: if canAccess('WhatsApp CRM', 'edit', (isMarketing() || isReception() || isSales() || isStaff()));
+      allow delete: if canAccess('WhatsApp CRM', 'delete', false);
+    }
+
     match /loyalty_logs/{docId} {
       allow read: if canAccess('Loyalty', 'view', true);
       allow create, update: if canAccess('Loyalty', 'edit', isStaff());

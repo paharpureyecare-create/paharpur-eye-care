@@ -1026,6 +1026,7 @@ export interface PurchaseItem {
   itemName: string;
   quantity: number;
   purchaseRate: number;
+  rate?: number;
   discount: number;
   taxPercent: number;
   total: number;
@@ -1036,15 +1037,21 @@ export interface PurchaseRecord {
   supplierId: string;
   supplierName: string;
   invoiceNo: string;
+  invoiceNumber?: string;
   date: string;
   items: PurchaseItem[];
   subTotal: number;
   discount: number;
   tax: number;
+  taxTotal?: number;
   total: number;
+  grandTotal?: number;
   paid: number;
+  paidAmount?: number;
   due: number;
+  dueAmount?: number;
   paymentMode: string;
+  status?: string;
   notes?: string;
 }
 

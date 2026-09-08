@@ -163,7 +163,7 @@ export const SidebarNav: React.FC = () => {
     .filter(group => group.items.length > 0);
 
   return (
-    <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0 min-h-[calc(100vh-4rem)] border-r border-slate-800">
+    <aside className="hidden lg:flex w-64 bg-slate-900 text-slate-300 flex-col shrink-0 min-h-[calc(100vh-4rem)] border-r border-slate-800">
       {/* Prominent AI Assistant Card */}
       <div className="p-3 border-b border-slate-800">
         <button

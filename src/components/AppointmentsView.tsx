@@ -328,9 +328,183 @@ export const AppointmentsView: React.FC = () => {
 
       </div>
 
-      {/* Appointments List Table */}
+      {/* Appointments List Table & Mobile Cards */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
+        
+        {/* Mobile Appointment Cards View (Android Touch-Optimized) */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {filtered.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              <Calendar className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+              No appointments found matching your search. Click "+ Book New Appointment" to create one.
+            </div>
+          ) : (
+            filtered.map(apt => {
+              const patientObj = patients.find(p => p.mrd === apt.mrd);
+              const displayVillage = apt.village || patientObj?.village;
+              const displayAge = apt.age || patientObj?.age;
+              const displayGender = apt.gender || patientObj?.gender;
+              const totalFee = apt.totalFee || apt.fee || 150;
+              const paid = apt.paid !== undefined ? apt.paid : (apt.paidAmount !== undefined ? apt.paidAmount : 0);
+              const due = apt.due !== undefined ? apt.due : Math.max(0, (apt.netFee || totalFee) - paid);
+
+              return (
+                <div key={apt.id} className="p-3.5 space-y-2.5 hover:bg-slate-50 transition-colors">
+                  {/* Row 1: Token/ID, Time & Status */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-black bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-900">
+                        {apt.id}
+                      </span>
+                      <div className="flex items-center gap-1 text-xs font-bold text-slate-800">
+                        <Clock className="w-3.5 h-3.5 text-teal-600" />
+                        <span>{apt.time}</span>
+                        {apt.date === today && (
+                          <span className="text-[10px] text-teal-700 bg-teal-50 px-1.5 py-0.2 rounded font-extrabold">
+                            Today
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <select
+                      value={apt.status}
+                      disabled={!hasPermission('Appointments', 'edit')}
+                      onChange={e => {
+                        const newStatus = e.target.value as AppointmentStatus;
+                        checkAndExecuteAction('Appointments', 'edit', () => {
+                          updateAppointmentStatus(apt.id, newStatus);
+                        }, 'Change Appointment Status');
+                      }}
+                      className={`text-[10px] font-bold rounded-lg px-2 py-1 border focus:outline-none ${
+                        apt.status === 'Completed'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : apt.status === 'In Consultation'
+                          ? 'bg-purple-50 text-purple-800 border-purple-300 animate-pulse'
+                          : apt.status === 'Waiting'
+                          ? 'bg-blue-50 text-blue-800 border-blue-300'
+                          : apt.status === 'Archived'
+                          ? 'bg-rose-50 text-rose-800 border-rose-300'
+                          : 'bg-slate-100 text-slate-800 border-slate-300'
+                      }`}
+                    >
+                      {statusOptions.map(st => (
+                        <option key={st} value={st}>
+                          {st}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Row 2: Patient Name, MRD, Mobile */}
+                  <div>
+                    <div
+                      onClick={() => {
+                        if (patientObj) setSelectedPatientFor360(patientObj);
+                        else setViewingAppointment(apt);
+                      }}
+                      className="font-bold text-slate-900 text-sm cursor-pointer hover:text-teal-700 flex items-center gap-1.5"
+                    >
+                      <span>{apt.patientName}</span>
+                      {displayAge && (
+                        <span className="text-slate-500 font-normal text-xs">
+                          ({displayAge}Y • {displayGender || 'Male'})
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-600 mt-0.5">
+                      <span className="font-mono text-teal-800 font-extrabold">{apt.mrd}</span>
+                      <span>•</span>
+                      <a href={`tel:${apt.mobile}`} className="font-semibold text-slate-800 underline">
+                        📞 {apt.mobile}
+                      </a>
+                      {displayVillage && (
+                        <>
+                          <span>•</span>
+                          <span className="text-[11px] text-slate-500">📍 {displayVillage}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Row 3: Doctor, Visit Type, Fee */}
+                  <div className="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-xl border border-slate-100">
+                    <div>
+                      <span className="font-bold text-slate-800">{apt.doctor}</span>
+                      <span className="text-[10px] text-slate-500 block">{apt.visitType}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-extrabold text-slate-900">₹{totalFee}</div>
+                      {due > 0 ? (
+                        <span className="text-[10px] font-extrabold text-rose-600">Due: ₹{due}</span>
+                      ) : (
+                        <span className="text-[10px] font-extrabold text-emerald-600">Paid ✓</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Row 4: Mobile 1-Tap Action Hub */}
+                  <div className="grid grid-cols-4 gap-1.5 pt-0.5">
+                    {/* WhatsApp */}
+                    {hasPermission('WhatsApp CRM', 'send') && (
+                      <button
+                        onClick={() => handleWhatsAppReminder(apt)}
+                        className="min-h-[40px] flex items-center justify-center gap-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-[11px] active:scale-95 transition"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>Chat</span>
+                      </button>
+                    )}
+
+                    {/* Print Slip */}
+                    {hasPermission('Appointments', 'print') && (
+                      <button
+                        onClick={() => handlePrintSlip(apt)}
+                        className="min-h-[40px] flex items-center justify-center gap-1 rounded-xl bg-slate-100 text-slate-700 font-bold text-[11px] active:scale-95 transition"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Slip</span>
+                      </button>
+                    )}
+
+                    {/* Collect Due or Details */}
+                    {due > 0 && hasPermission('Billing', 'create') ? (
+                      <button
+                        onClick={() => checkAndExecuteAction('Billing', 'create', () => setCollectingPaymentAppointment(apt), 'Collect Payment')}
+                        className="min-h-[40px] flex items-center justify-center gap-1 rounded-xl bg-amber-500 text-white font-bold text-[11px] active:scale-95 transition shadow-xs"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Pay ₹{due}</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setViewingAppointment(apt)}
+                        className="min-h-[40px] flex items-center justify-center gap-1 rounded-xl bg-slate-100 text-slate-700 font-bold text-[11px] active:scale-95 transition"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-teal-600" />
+                        <span>Details</span>
+                      </button>
+                    )}
+
+                    {/* Start Clinical Visit */}
+                    {hasPermission('Clinical Entry', 'create') && (
+                      <button
+                        onClick={() => checkAndExecuteAction('Clinical Entry', 'create', () => startVisitFromAppointment(apt.id), 'Start Clinical Visit')}
+                        className="min-h-[40px] flex items-center justify-center gap-1 rounded-xl bg-teal-600 text-white font-black text-[11px] active:scale-95 transition shadow-xs"
+                      >
+                        <Stethoscope className="w-3.5 h-3.5" />
+                        <span>{apt.status === 'Completed' ? 'Re-open' : '⚡ Start'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop Appointments Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-xs text-left">
             <thead className="bg-slate-900 text-white font-bold uppercase text-[11px]">
               <tr>

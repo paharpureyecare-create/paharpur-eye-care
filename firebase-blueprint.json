@@ -371,6 +371,48 @@
         "read": "request.auth != null",
         "write": "request.auth != null"
       }
+    },
+    "communication_logs": {
+      "title": "Communication Logs",
+      "description": "WhatsApp, SMS and patient outreach logs",
+      "fields": {
+        "id": { "type": "string", "description": "Log ID" },
+        "recipient": { "type": "string", "description": "Recipient Mobile" },
+        "message": { "type": "string", "description": "Message content" },
+        "channel": { "type": "string", "description": "Channel" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "stock_movements": {
+      "title": "Stock Movements",
+      "description": "Central stock in/out and adjustment ledger entries",
+      "fields": {
+        "id": { "type": "string", "description": "Movement ID" },
+        "itemCode": { "type": "string", "description": "Item Code / SKU" },
+        "movementType": { "type": "string", "description": "Type of movement" },
+        "qtyIn": { "type": "number", "description": "Quantity In" },
+        "qtyOut": { "type": "number", "description": "Quantity Out" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
+    },
+    "purchases": {
+      "title": "Purchase Orders",
+      "description": "Vendor and inventory purchase orders",
+      "fields": {
+        "id": { "type": "string", "description": "PO ID" },
+        "supplierId": { "type": "string", "description": "Supplier ID" },
+        "grandTotal": { "type": "number", "description": "Total purchase amount" }
+      },
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null"
+      }
     }
   }
 }

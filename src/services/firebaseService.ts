@@ -230,11 +230,12 @@ export const loadCloudDocument = async <T>(collectionName: string, docId: string
     const docRef = doc(db, collectionName, safeId);
     const snap = await getDoc(docRef);
     if (snap.exists()) {
-      return snap.data() as T;
+      const data = snap.data();
+      return { ...data, id: (data as any).id || snap.id } as T;
     }
     return null;
   } catch (err: any) {
-    console.warn(`Firestore getDoc error [${collectionName}/${docId}]:`, err);
+    console.warn(`Firestore get error [${collectionName}/${docId}]:`, err?.message || err);
     return null;
   }
 };
