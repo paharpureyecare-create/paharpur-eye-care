@@ -786,86 +786,86 @@ export const EditSpectacleOrderModal: React.FC<EditSpectacleOrderModalProps> = (
                     <tbody>
                       {/* OD (Right Eye) */}
                       <tr>
-                        <td className="p-2 border border-slate-300 font-bold bg-cyan-50 text-cyan-900 text-left">
+                        <td className="p-3 border border-slate-300 font-bold bg-cyan-50 text-cyan-900 text-left text-xs sm:text-sm">
                           OD (Right / ডান)
                         </td>
-                        <td className="p-1 border border-slate-300">
+                        <td className="p-1.5 border border-slate-300 min-w-[80px]">
                           <input
                             type="text"
                             value={odSph}
                             onChange={e => setOdSph(e.target.value)}
-                            className="w-full text-center py-1 font-mono font-bold bg-white border border-slate-200 rounded"
-                            placeholder="+0.00"
+                            className="w-full text-center py-2 px-1 font-mono text-sm font-black bg-white border border-slate-300 rounded-lg min-h-[40px] focus:ring-2 focus:ring-teal-500"
+                            placeholder="—"
                           />
                         </td>
-                        <td className="p-1 border border-slate-300">
+                        <td className="p-1.5 border border-slate-300 min-w-[80px]">
                           <input
                             type="text"
                             value={odCyl}
                             onChange={e => setOdCyl(e.target.value)}
-                            className="w-full text-center py-1 font-mono font-bold bg-white border border-slate-200 rounded"
-                            placeholder="0.00"
+                            className="w-full text-center py-2 px-1 font-mono text-sm font-black bg-white border border-slate-300 rounded-lg min-h-[40px] focus:ring-2 focus:ring-teal-500 text-indigo-900"
+                            placeholder="—"
                           />
                         </td>
-                        <td className="p-1 border border-slate-300">
+                        <td className="p-1.5 border border-slate-300 min-w-[70px]">
                           <input
                             type="text"
                             value={odAxis}
                             onChange={e => setOdAxis(e.target.value)}
-                            className="w-full text-center py-1 font-mono font-bold bg-white border border-slate-200 rounded"
-                            placeholder="180"
+                            className="w-full text-center py-2 px-1 font-mono text-sm font-black bg-white border border-slate-300 rounded-lg min-h-[40px] focus:ring-2 focus:ring-teal-500"
+                            placeholder="—"
                           />
                         </td>
-                        <td className="p-1 border border-slate-300">
+                        <td className="p-1.5 border border-slate-300 min-w-[80px]">
                           <input
                             type="text"
                             value={odAdd}
                             onChange={e => setOdAdd(e.target.value)}
-                            className="w-full text-center py-1 font-mono font-bold bg-white border border-slate-200 rounded"
-                            placeholder="+2.00"
+                            className="w-full text-center py-2 px-1 font-mono text-sm font-black bg-white border border-slate-300 rounded-lg min-h-[40px] focus:ring-2 focus:ring-teal-500 text-emerald-800"
+                            placeholder="—"
                           />
                         </td>
                       </tr>
 
                       {/* OS (Left Eye) */}
                       <tr>
-                        <td className="p-2 border border-slate-300 font-bold bg-indigo-50 text-indigo-900 text-left">
+                        <td className="p-3 border border-slate-300 font-bold bg-indigo-50 text-indigo-900 text-left text-xs sm:text-sm">
                           OS (Left / বাম)
                         </td>
-                        <td className="p-1 border border-slate-300">
+                        <td className="p-1.5 border border-slate-300 min-w-[80px]">
                           <input
                             type="text"
                             value={osSph}
                             onChange={e => setOsSph(e.target.value)}
-                            className="w-full text-center py-1 font-mono font-bold bg-white border border-slate-200 rounded"
-                            placeholder="+0.00"
+                            className="w-full text-center py-2 px-1 font-mono text-sm font-black bg-white border border-slate-300 rounded-lg min-h-[40px] focus:ring-2 focus:ring-teal-500"
+                            placeholder="—"
                           />
                         </td>
-                        <td className="p-1 border border-slate-300">
+                        <td className="p-1.5 border border-slate-300 min-w-[80px]">
                           <input
                             type="text"
                             value={osCyl}
                             onChange={e => setOsCyl(e.target.value)}
-                            className="w-full text-center py-1 font-mono font-bold bg-white border border-slate-200 rounded"
-                            placeholder="0.00"
+                            className="w-full text-center py-2 px-1 font-mono text-sm font-black bg-white border border-slate-300 rounded-lg min-h-[40px] focus:ring-2 focus:ring-teal-500 text-indigo-900"
+                            placeholder="—"
                           />
                         </td>
-                        <td className="p-1 border border-slate-300">
+                        <td className="p-1.5 border border-slate-300 min-w-[70px]">
                           <input
                             type="text"
                             value={osAxis}
                             onChange={e => setOsAxis(e.target.value)}
-                            className="w-full text-center py-1 font-mono font-bold bg-white border border-slate-200 rounded"
-                            placeholder="180"
+                            className="w-full text-center py-2 px-1 font-mono text-sm font-black bg-white border border-slate-300 rounded-lg min-h-[40px] focus:ring-2 focus:ring-teal-500"
+                            placeholder="—"
                           />
                         </td>
-                        <td className="p-1 border border-slate-300">
+                        <td className="p-1.5 border border-slate-300 min-w-[80px]">
                           <input
                             type="text"
                             value={osAdd}
                             onChange={e => setOsAdd(e.target.value)}
-                            className="w-full text-center py-1 font-mono font-bold bg-white border border-slate-200 rounded"
-                            placeholder="+2.00"
+                            className="w-full text-center py-2 px-1 font-mono text-sm font-black bg-white border border-slate-300 rounded-lg min-h-[40px] focus:ring-2 focus:ring-teal-500 text-emerald-800"
+                            placeholder="—"
                           />
                         </td>
                       </tr>

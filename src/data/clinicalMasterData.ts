@@ -468,31 +468,31 @@ export const createEmptyClinicalExamination = (): ClinicalExamination => {
 
     refractionStages: {
       currentGlasses: {
-        od: { sph: '-1.00', cyl: '0.00', axis: '-', add: '+1.50', va: '6/9' },
-        os: { sph: '-1.00', cyl: '0.00', axis: '-', add: '+1.50', va: '6/9' },
+        od: { sph: '', cyl: '', axis: '', add: '', va: '' },
+        os: { sph: '', cyl: '', axis: '', add: '', va: '' },
         notes: ''
       },
       autoRefraction: {
-        od: { sph: '-1.50', cyl: '-0.50', axis: '90°' },
-        os: { sph: '-1.50', cyl: '-0.50', axis: '90°' },
+        od: { sph: '', cyl: '', axis: '' },
+        os: { sph: '', cyl: '', axis: '' },
         notes: ''
       },
       retinoscopy: {
-        od: { sph: '-1.50', cyl: '-0.50', axis: '90°', workingDist: '66 cm (-1.50D)' },
-        os: { sph: '-1.50', cyl: '-0.50', axis: '90°', workingDist: '66 cm (-1.50D)' },
+        od: { sph: '', cyl: '', axis: '', workingDist: '' },
+        os: { sph: '', cyl: '', axis: '', workingDist: '' },
         notes: ''
       },
       subjectiveRefraction: {
-        od: { sph: '-1.50', cyl: '-0.50', axis: '90°', add: '+1.75', va: '6/6' },
-        os: { sph: '-1.50', cyl: '-0.50', axis: '90°', add: '+1.75', va: '6/6' },
+        od: { sph: '', cyl: '', axis: '', add: '', va: '' },
+        os: { sph: '', cyl: '', axis: '', add: '', va: '' },
         notes: ''
       },
       finalPrescription: {
-        od: { sph: '-1.50', cyl: '-0.50', axis: '90°', add: '+1.75', distanceVa: '6/6', nearVa: 'N6', pd: '31' },
-        os: { sph: '-1.50', cyl: '-0.50', axis: '90°', add: '+1.75', distanceVa: '6/6', nearVa: 'N6', pd: '31' },
-        pdTotal: '62',
-        pdOd: '31',
-        pdOs: '31',
+        od: { sph: '', cyl: '', axis: '', add: '', distanceVa: '', nearVa: '', pd: '' },
+        os: { sph: '', cyl: '', axis: '', add: '', distanceVa: '', nearVa: '', pd: '' },
+        pdTotal: '',
+        pdOd: '',
+        pdOs: '',
         prescriptionDate: new Date().toISOString().split('T')[0],
         examinerName: 'Dr. S. K. Banerjee',
         examinerRole: 'Ophthalmologist'

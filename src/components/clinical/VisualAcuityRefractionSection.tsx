@@ -62,28 +62,28 @@ export const VisualAcuityRefractionSection: React.FC<Props> = ({
 
   const refStages = examination?.refractionStages || {
     currentGlasses: {
-      od: { sph: '-1.00', cyl: '0.00', axis: '-', add: '+1.50', va: '6/9' },
-      os: { sph: '-1.00', cyl: '0.00', axis: '-', add: '+1.50', va: '6/9' },
+      od: { sph: '', cyl: '', axis: '', add: '', va: '' },
+      os: { sph: '', cyl: '', axis: '', add: '', va: '' },
       notes: ''
     },
     autoRefraction: {
-      od: { sph: '-1.50', cyl: '-0.50', axis: '90°' },
-      os: { sph: '-1.50', cyl: '-0.50', axis: '90°' },
+      od: { sph: '', cyl: '', axis: '' },
+      os: { sph: '', cyl: '', axis: '' },
       notes: ''
     },
     retinoscopy: {
-      od: { sph: '-1.50', cyl: '-0.50', axis: '90°', workingDist: '66 cm (-1.50D)' },
-      os: { sph: '-1.50', cyl: '-0.50', axis: '90°', workingDist: '66 cm (-1.50D)' },
+      od: { sph: '', cyl: '', axis: '', workingDist: '' },
+      os: { sph: '', cyl: '', axis: '', workingDist: '' },
       notes: ''
     },
     subjectiveRefraction: {
-      od: { sph: '-1.50', cyl: '-0.50', axis: '90°', add: '+1.75', va: '6/6' },
-      os: { sph: '-1.50', cyl: '-0.50', axis: '90°', add: '+1.75', va: '6/6' },
+      od: { sph: '', cyl: '', axis: '', add: '', va: '' },
+      os: { sph: '', cyl: '', axis: '', add: '', va: '' },
       notes: ''
     },
     finalPrescription: {
-      od: { sph: odPower.sph || '-1.50', cyl: odPower.cyl || '-0.50', axis: odPower.axis || '90°', add: odPower.add || '+1.75', distanceVa: odPower.distanceVa || '6/6', nearVa: odPower.nearVa || 'N6', pd: odPower.pd || '31' },
-      os: { sph: osPower.sph || '-1.50', cyl: osPower.cyl || '-0.50', axis: osPower.axis || '90°', add: osPower.add || '+1.75', distanceVa: osPower.distanceVa || '6/6', nearVa: osPower.nearVa || 'N6', pd: osPower.pd || '31' },
+      od: { sph: odPower.sph || '', cyl: odPower.cyl || '', axis: odPower.axis || '', add: odPower.add || '', distanceVa: odPower.distanceVa || '6/6', nearVa: odPower.nearVa || 'N6', pd: odPower.pd || '31' },
+      os: { sph: osPower.sph || '', cyl: osPower.cyl || '', axis: osPower.axis || '', add: osPower.add || '', distanceVa: osPower.distanceVa || '6/6', nearVa: osPower.nearVa || 'N6', pd: osPower.pd || '31' },
       pdTotal: '62',
       pdOd: '31',
       pdOs: '31',
@@ -760,11 +760,11 @@ export const VisualAcuityRefractionSection: React.FC<Props> = ({
                 <tr className="bg-teal-50/50 text-teal-900 font-bold border-b border-teal-200">
                   <th className="p-2.5">Subjective Testing</th>
                   <th className="p-2.5">Eye</th>
-                  <th className="p-2.5 w-20">Sph (D)</th>
-                  <th className="p-2.5 w-20">Cyl (D)</th>
-                  <th className="p-2.5 w-16">Axis</th>
-                  <th className="p-2.5 w-20">Add</th>
-                  <th className="p-2.5 w-20">VA</th>
+                  <th className="p-2.5 min-w-[85px]">Sph (D)</th>
+                  <th className="p-2.5 min-w-[85px]">Cyl (D)</th>
+                  <th className="p-2.5 min-w-[75px]">Axis</th>
+                  <th className="p-2.5 min-w-[85px]">Add</th>
+                  <th className="p-2.5 min-w-[80px]">VA</th>
                   <th className="p-2.5">Notes</th>
                 </tr>
               </thead>
@@ -777,50 +777,50 @@ export const VisualAcuityRefractionSection: React.FC<Props> = ({
                   <td className="p-1.5"><input type="text" value={refStages.subjectiveRefraction?.od?.sph || ''} onChange={e => {
                     const val = e.target.value;
                     onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, subjectiveRefraction: { ...refStages.subjectiveRefraction, od: { ...refStages.subjectiveRefraction.od, sph: val } } } }));
-                  }} placeholder="-1.50" className="w-full bg-white border border-teal-200 rounded px-1.5 py-1 text-xs font-bold" /></td>
+                  }} placeholder="—" className="w-full min-w-[75px] bg-white border border-teal-200 rounded-lg px-2 py-1.5 text-sm font-black text-center focus:ring-2 focus:ring-teal-500" /></td>
                   <td className="p-1.5"><input type="text" value={refStages.subjectiveRefraction?.od?.cyl || ''} onChange={e => {
                     const val = e.target.value;
                     onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, subjectiveRefraction: { ...refStages.subjectiveRefraction, od: { ...refStages.subjectiveRefraction.od, cyl: val } } } }));
-                  }} placeholder="-0.50" className="w-full bg-white border border-teal-200 rounded px-1.5 py-1 text-xs font-bold" /></td>
+                  }} placeholder="—" className="w-full min-w-[75px] bg-white border border-teal-200 rounded-lg px-2 py-1.5 text-sm font-black text-center focus:ring-2 focus:ring-teal-500" /></td>
                   <td className="p-1.5"><input type="text" value={refStages.subjectiveRefraction?.od?.axis || ''} onChange={e => {
                     const val = e.target.value;
                     onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, subjectiveRefraction: { ...refStages.subjectiveRefraction, od: { ...refStages.subjectiveRefraction.od, axis: val } } } }));
-                  }} placeholder="90°" className="w-full bg-white border border-teal-200 rounded px-1.5 py-1 text-xs font-bold" /></td>
+                  }} placeholder="—" className="w-full min-w-[65px] bg-white border border-teal-200 rounded-lg px-2 py-1.5 text-sm font-black text-center focus:ring-2 focus:ring-teal-500" /></td>
                   <td className="p-1.5"><input type="text" value={refStages.subjectiveRefraction?.od?.add || ''} onChange={e => {
                     const val = e.target.value;
                     onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, subjectiveRefraction: { ...refStages.subjectiveRefraction, od: { ...refStages.subjectiveRefraction.od, add: val } } } }));
-                  }} placeholder="+1.75" className="w-full bg-white border border-teal-200 rounded px-1.5 py-1 text-xs font-bold" /></td>
+                  }} placeholder="—" className="w-full min-w-[75px] bg-white border border-teal-200 rounded-lg px-2 py-1.5 text-sm font-black text-center focus:ring-2 focus:ring-teal-500" /></td>
                   <td className="p-1.5"><input type="text" value={refStages.subjectiveRefraction?.od?.va || ''} onChange={e => {
                     const val = e.target.value;
                     onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, subjectiveRefraction: { ...refStages.subjectiveRefraction, od: { ...refStages.subjectiveRefraction.od, va: val } } } }));
-                  }} placeholder="6/6" className="w-full bg-white border border-teal-200 rounded px-1.5 py-1 text-xs font-bold text-teal-800" /></td>
+                  }} placeholder="6/6" className="w-full min-w-[70px] bg-white border border-teal-200 rounded-lg px-2 py-1.5 text-sm font-black text-center text-teal-800 focus:ring-2 focus:ring-teal-500" /></td>
                   <td rowSpan={2} className="p-1.5"><input type="text" value={refStages.subjectiveRefraction?.notes || ''} onChange={e => {
                     const val = e.target.value;
                     onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, subjectiveRefraction: { ...refStages.subjectiveRefraction, notes: val } } }));
-                  }} placeholder="Full binocular balance, comfortable with Duo-chrome" className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs" /></td>
+                  }} placeholder="Binocular balance, comfortable with Duo-chrome" className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs" /></td>
                 </tr>
                 <tr className="bg-teal-50/20">
                   <td className="p-2 font-bold text-emerald-700">OS</td>
                   <td className="p-1.5"><input type="text" value={refStages.subjectiveRefraction?.os?.sph || ''} onChange={e => {
                     const val = e.target.value;
                     onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, subjectiveRefraction: { ...refStages.subjectiveRefraction, os: { ...refStages.subjectiveRefraction.os, sph: val } } } }));
-                  }} placeholder="-1.50" className="w-full bg-white border border-teal-200 rounded px-1.5 py-1 text-xs font-bold" /></td>
+                  }} placeholder="—" className="w-full min-w-[75px] bg-white border border-teal-200 rounded-lg px-2 py-1.5 text-sm font-black text-center focus:ring-2 focus:ring-teal-500" /></td>
                   <td className="p-1.5"><input type="text" value={refStages.subjectiveRefraction?.os?.cyl || ''} onChange={e => {
                     const val = e.target.value;
                     onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, subjectiveRefraction: { ...refStages.subjectiveRefraction, os: { ...refStages.subjectiveRefraction.os, cyl: val } } } }));
-                  }} placeholder="-0.50" className="w-full bg-white border border-teal-200 rounded px-1.5 py-1 text-xs font-bold" /></td>
+                  }} placeholder="—" className="w-full min-w-[75px] bg-white border border-teal-200 rounded-lg px-2 py-1.5 text-sm font-black text-center focus:ring-2 focus:ring-teal-500" /></td>
                   <td className="p-1.5"><input type="text" value={refStages.subjectiveRefraction?.os?.axis || ''} onChange={e => {
                     const val = e.target.value;
                     onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, subjectiveRefraction: { ...refStages.subjectiveRefraction, os: { ...refStages.subjectiveRefraction.os, axis: val } } } }));
-                  }} placeholder="90°" className="w-full bg-white border border-teal-200 rounded px-1.5 py-1 text-xs font-bold" /></td>
+                  }} placeholder="—" className="w-full min-w-[65px] bg-white border border-teal-200 rounded-lg px-2 py-1.5 text-sm font-black text-center focus:ring-2 focus:ring-teal-500" /></td>
                   <td className="p-1.5"><input type="text" value={refStages.subjectiveRefraction?.os?.add || ''} onChange={e => {
                     const val = e.target.value;
                     onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, subjectiveRefraction: { ...refStages.subjectiveRefraction, os: { ...refStages.subjectiveRefraction.os, add: val } } } }));
-                  }} placeholder="+1.75" className="w-full bg-white border border-teal-200 rounded px-1.5 py-1 text-xs font-bold" /></td>
+                  }} placeholder="—" className="w-full min-w-[75px] bg-white border border-teal-200 rounded-lg px-2 py-1.5 text-sm font-black text-center focus:ring-2 focus:ring-teal-500" /></td>
                   <td className="p-1.5"><input type="text" value={refStages.subjectiveRefraction?.os?.va || ''} onChange={e => {
                     const val = e.target.value;
                     onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, subjectiveRefraction: { ...refStages.subjectiveRefraction, os: { ...refStages.subjectiveRefraction.os, va: val } } } }));
-                  }} placeholder="6/6" className="w-full bg-white border border-teal-200 rounded px-1.5 py-1 text-xs font-bold text-teal-800" /></td>
+                  }} placeholder="6/6" className="w-full min-w-[70px] bg-white border border-teal-200 rounded-lg px-2 py-1.5 text-sm font-black text-center text-teal-800 focus:ring-2 focus:ring-teal-500" /></td>
                 </tr>
               </tbody>
             </table>
@@ -830,149 +830,169 @@ export const VisualAcuityRefractionSection: React.FC<Props> = ({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
             
             {/* OD Final Power Box */}
-            <div className="bg-blue-50/50 rounded-xl p-3.5 border border-blue-300">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-black text-blue-900 uppercase tracking-wider">
-                  OD (Right Eye Final Power)
-                </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-200 text-blue-900">
+            <div className="bg-blue-50/60 rounded-2xl p-4 sm:p-5 border-2 border-blue-300 shadow-xs">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-blue-600"></span>
+                  <span className="text-xs sm:text-sm font-black text-blue-950 uppercase tracking-wider">
+                    OD — Right Eye Final Power (ডান চোখ)
+                  </span>
+                </div>
+                <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-blue-200 text-blue-950 border border-blue-300">
                   OD FINAL
                 </span>
               </div>
-              <div className="grid grid-cols-6 gap-2">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-600 block">Sph</label>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 sm:gap-3">
+                <div className="flex flex-col">
+                  <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Sph (D)</label>
                   <input
                     type="text"
                     value={odPower.sph || ''}
                     onChange={e => onPowerChange('od', 'sph', e.target.value)}
-                    placeholder="-1.50"
-                    className="w-full bg-white border border-blue-200 font-bold text-xs rounded p-1.5 text-center focus:ring-1 focus:ring-blue-500"
+                    placeholder="—"
+                    className="w-full min-h-[46px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
                   />
+                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. -0.50</span>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-600 block">Cyl</label>
+                <div className="flex flex-col">
+                  <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Cyl (D)</label>
                   <input
                     type="text"
                     value={odPower.cyl || ''}
                     onChange={e => onPowerChange('od', 'cyl', e.target.value)}
-                    placeholder="-0.50"
-                    className="w-full bg-white border border-blue-200 font-bold text-xs rounded p-1.5 text-center focus:ring-1 focus:ring-blue-500"
+                    placeholder="—"
+                    className="w-full min-h-[46px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-blue-950 shadow-xs transition-all"
                   />
+                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. -0.25</span>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-600 block">Axis</label>
+                <div className="flex flex-col">
+                  <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Axis</label>
                   <input
                     type="text"
                     value={odPower.axis || ''}
                     onChange={e => onPowerChange('od', 'axis', e.target.value)}
-                    placeholder="90°"
-                    className="w-full bg-white border border-blue-200 font-bold text-xs rounded p-1.5 text-center focus:ring-1 focus:ring-blue-500"
+                    placeholder="—"
+                    className="w-full min-h-[46px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
                   />
+                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. 180°</span>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-600 block">Add</label>
+                <div className="flex flex-col">
+                  <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Add</label>
                   <input
                     type="text"
                     value={odPower.add || ''}
                     onChange={e => onPowerChange('od', 'add', e.target.value)}
-                    placeholder="+1.75"
-                    className="w-full bg-white border border-blue-200 font-bold text-xs rounded p-1.5 text-center focus:ring-1 focus:ring-blue-500"
+                    placeholder="—"
+                    className="w-full min-h-[46px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-emerald-800 shadow-xs transition-all"
                   />
+                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. +1.75</span>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-600 block">Dist VA</label>
+                <div className="flex flex-col">
+                  <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Dist VA</label>
                   <input
                     type="text"
-                    value={odPower.distanceVa || '6/6'}
+                    value={odPower.distanceVa || ''}
                     onChange={e => onPowerChange('od', 'distanceVa', e.target.value)}
                     placeholder="6/6"
-                    className="w-full bg-white border border-blue-200 font-bold text-xs rounded p-1.5 text-center focus:ring-1 focus:ring-blue-500"
+                    className="w-full min-h-[46px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
                   />
+                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Snellen</span>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-600 block">Near VA</label>
+                <div className="flex flex-col">
+                  <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Near VA</label>
                   <input
                     type="text"
-                    value={odPower.nearVa || 'N6'}
+                    value={odPower.nearVa || ''}
                     onChange={e => onPowerChange('od', 'nearVa', e.target.value)}
                     placeholder="N6"
-                    className="w-full bg-white border border-blue-200 font-bold text-xs rounded p-1.5 text-center focus:ring-1 focus:ring-blue-500"
+                    className="w-full min-h-[46px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
                   />
+                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Jaeger</span>
                 </div>
               </div>
             </div>
 
             {/* OS Final Power Box */}
-            <div className="bg-emerald-50/50 rounded-xl p-3.5 border border-emerald-300">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-black text-emerald-900 uppercase tracking-wider">
-                  OS (Left Eye Final Power)
-                </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-200 text-emerald-900">
+            <div className="bg-emerald-50/60 rounded-2xl p-4 sm:p-5 border-2 border-emerald-300 shadow-xs">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-emerald-600"></span>
+                  <span className="text-xs sm:text-sm font-black text-emerald-950 uppercase tracking-wider">
+                    OS — Left Eye Final Power (বাম চোখ)
+                  </span>
+                </div>
+                <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-200 text-emerald-950 border border-emerald-300">
                   OS FINAL
                 </span>
               </div>
-              <div className="grid grid-cols-6 gap-2">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-600 block">Sph</label>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 sm:gap-3">
+                <div className="flex flex-col">
+                  <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Sph (D)</label>
                   <input
                     type="text"
                     value={osPower.sph || ''}
                     onChange={e => onPowerChange('os', 'sph', e.target.value)}
-                    placeholder="-1.50"
-                    className="w-full bg-white border border-emerald-200 font-bold text-xs rounded p-1.5 text-center focus:ring-1 focus:ring-emerald-500"
+                    placeholder="—"
+                    className="w-full min-h-[46px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
                   />
+                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. -0.50</span>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-600 block">Cyl</label>
+                <div className="flex flex-col">
+                  <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Cyl (D)</label>
                   <input
                     type="text"
                     value={osPower.cyl || ''}
                     onChange={e => onPowerChange('os', 'cyl', e.target.value)}
-                    placeholder="-0.50"
-                    className="w-full bg-white border border-emerald-200 font-bold text-xs rounded p-1.5 text-center focus:ring-1 focus:ring-emerald-500"
+                    placeholder="—"
+                    className="w-full min-h-[46px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-emerald-950 shadow-xs transition-all"
                   />
+                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. -0.25</span>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-600 block">Axis</label>
+                <div className="flex flex-col">
+                  <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Axis</label>
                   <input
                     type="text"
                     value={osPower.axis || ''}
                     onChange={e => onPowerChange('os', 'axis', e.target.value)}
-                    placeholder="90°"
-                    className="w-full bg-white border border-emerald-200 font-bold text-xs rounded p-1.5 text-center focus:ring-1 focus:ring-emerald-500"
+                    placeholder="—"
+                    className="w-full min-h-[46px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
                   />
+                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. 180°</span>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-600 block">Add</label>
+                <div className="flex flex-col">
+                  <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Add</label>
                   <input
                     type="text"
                     value={osPower.add || ''}
                     onChange={e => onPowerChange('os', 'add', e.target.value)}
-                    placeholder="+1.75"
-                    className="w-full bg-white border border-emerald-200 font-bold text-xs rounded p-1.5 text-center focus:ring-1 focus:ring-emerald-500"
+                    placeholder="—"
+                    className="w-full min-h-[46px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-emerald-800 shadow-xs transition-all"
                   />
+                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. +1.75</span>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-600 block">Dist VA</label>
+                <div className="flex flex-col">
+                  <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Dist VA</label>
                   <input
                     type="text"
-                    value={osPower.distanceVa || '6/6'}
+                    value={osPower.distanceVa || ''}
                     onChange={e => onPowerChange('os', 'distanceVa', e.target.value)}
                     placeholder="6/6"
-                    className="w-full bg-white border border-emerald-200 font-bold text-xs rounded p-1.5 text-center focus:ring-1 focus:ring-emerald-500"
+                    className="w-full min-h-[46px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
                   />
+                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Snellen</span>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-600 block">Near VA</label>
+                <div className="flex flex-col">
+                  <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Near VA</label>
                   <input
                     type="text"
-                    value={osPower.nearVa || 'N6'}
+                    value={osPower.nearVa || ''}
                     onChange={e => onPowerChange('os', 'nearVa', e.target.value)}
                     placeholder="N6"
-                    className="w-full bg-white border border-emerald-200 font-bold text-xs rounded p-1.5 text-center focus:ring-1 focus:ring-emerald-500"
+                    className="w-full min-h-[46px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
                   />
+                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Jaeger</span>
                 </div>
               </div>
             </div>

@@ -153,16 +153,16 @@ export const QuickModals: React.FC = () => {
     manualLensCoating: 'Blue-Cut UV420',
     lensRate: lenses?.[0]?.retailRate || 1000,
 
-    // Power fields
-    odSph: '+0.25',
-    odCyl: '0.00',
-    odAxis: '180',
-    odAdd: '—',
+    // Power fields (blank by default - no auto-fill)
+    odSph: '',
+    odCyl: '',
+    odAxis: '',
+    odAdd: '',
     odMatchedLensSku: lenses?.[0]?.lensCode || '',
-    osSph: '+0.25',
-    osCyl: '0.00',
-    osAxis: '180',
-    osAdd: '—',
+    osSph: '',
+    osCyl: '',
+    osAxis: '',
+    osAdd: '',
     osMatchedLensSku: lenses?.[0]?.lensCode || '',
     pd: '63mm',
     distanceVa: '6/6',
@@ -1186,9 +1186,9 @@ export const QuickModals: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-5 gap-2 font-mono text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 font-mono text-xs">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-0.5">SPH</label>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">SPH (D)</label>
                       <input
                         type="text"
                         value={orderForm.odSph}
@@ -1201,12 +1201,12 @@ export const QuickModals: React.FC = () => {
                             odMatchedLensSku: matched?.lensCode || orderForm.odMatchedLensSku
                           });
                         }}
-                        placeholder="+0.00"
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 bg-white"
+                        placeholder="—"
+                        className="w-full min-h-[42px] px-2.5 py-2 border border-slate-300 rounded-xl text-sm font-black text-center text-slate-900 bg-white focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-0.5">CYL</label>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">CYL (D)</label>
                       <input
                         type="text"
                         value={orderForm.odCyl}
@@ -1219,38 +1219,38 @@ export const QuickModals: React.FC = () => {
                             odMatchedLensSku: matched?.lensCode || orderForm.odMatchedLensSku
                           });
                         }}
-                        placeholder="0.00"
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-indigo-900 bg-white"
+                        placeholder="—"
+                        className="w-full min-h-[42px] px-2.5 py-2 border border-slate-300 rounded-xl text-sm font-black text-center text-indigo-900 bg-white focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-0.5">AXIS</label>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">AXIS</label>
                       <input
                         type="text"
                         value={orderForm.odAxis}
                         onChange={e => setOrderForm({ ...orderForm, odAxis: e.target.value })}
-                        placeholder="180"
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 bg-white"
+                        placeholder="—"
+                        className="w-full min-h-[42px] px-2.5 py-2 border border-slate-300 rounded-xl text-sm font-black text-center text-slate-900 bg-white focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ADD</label>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">ADD</label>
                       <input
                         type="text"
                         value={orderForm.odAdd}
                         onChange={e => setOrderForm({ ...orderForm, odAdd: e.target.value })}
-                        placeholder="+2.00"
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-emerald-800 bg-white"
+                        placeholder="—"
+                        className="w-full min-h-[42px] px-2.5 py-2 border border-slate-300 rounded-xl text-sm font-black text-center text-emerald-800 bg-white focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-0.5">VA (Dist)</label>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">VA (Dist)</label>
                       <input
                         type="text"
                         value={orderForm.distanceVa}
                         onChange={e => setOrderForm({ ...orderForm, distanceVa: e.target.value })}
                         placeholder="6/6"
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 bg-white"
+                        className="w-full min-h-[42px] px-2.5 py-2 border border-slate-300 rounded-xl text-sm font-black text-center text-slate-800 bg-white focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
                   </div>
@@ -1286,9 +1286,9 @@ export const QuickModals: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-5 gap-2 font-mono text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 font-mono text-xs">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-0.5">SPH</label>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">SPH (D)</label>
                       <input
                         type="text"
                         value={orderForm.osSph}
@@ -1301,12 +1301,12 @@ export const QuickModals: React.FC = () => {
                             osMatchedLensSku: matched?.lensCode || orderForm.osMatchedLensSku
                           });
                         }}
-                        placeholder="+0.00"
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 bg-white"
+                        placeholder="—"
+                        className="w-full min-h-[42px] px-2.5 py-2 border border-slate-300 rounded-xl text-sm font-black text-center text-slate-900 bg-white focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-0.5">CYL</label>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">CYL (D)</label>
                       <input
                         type="text"
                         value={orderForm.osCyl}
@@ -1319,38 +1319,38 @@ export const QuickModals: React.FC = () => {
                             osMatchedLensSku: matched?.lensCode || orderForm.osMatchedLensSku
                           });
                         }}
-                        placeholder="0.00"
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-indigo-900 bg-white"
+                        placeholder="—"
+                        className="w-full min-h-[42px] px-2.5 py-2 border border-slate-300 rounded-xl text-sm font-black text-center text-indigo-900 bg-white focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-0.5">AXIS</label>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">AXIS</label>
                       <input
                         type="text"
                         value={orderForm.osAxis}
                         onChange={e => setOrderForm({ ...orderForm, osAxis: e.target.value })}
-                        placeholder="180"
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 bg-white"
+                        placeholder="—"
+                        className="w-full min-h-[42px] px-2.5 py-2 border border-slate-300 rounded-xl text-sm font-black text-center text-slate-900 bg-white focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ADD</label>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">ADD</label>
                       <input
                         type="text"
                         value={orderForm.osAdd}
                         onChange={e => setOrderForm({ ...orderForm, osAdd: e.target.value })}
-                        placeholder="+2.00"
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-emerald-800 bg-white"
+                        placeholder="—"
+                        className="w-full min-h-[42px] px-2.5 py-2 border border-slate-300 rounded-xl text-sm font-black text-center text-emerald-800 bg-white focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-0.5">PD (mm)</label>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">PD (mm)</label>
                       <input
                         type="text"
                         value={orderForm.pd}
                         onChange={e => setOrderForm({ ...orderForm, pd: e.target.value })}
                         placeholder="63mm"
-                        className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 bg-white"
+                        className="w-full min-h-[42px] px-2.5 py-2 border border-slate-300 rounded-xl text-sm font-black text-center text-slate-800 bg-white focus:ring-2 focus:ring-teal-500"
                       />
                     </div>
                   </div>
