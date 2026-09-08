@@ -1296,10 +1296,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (ok) {
         setCloudSyncStatus('synced');
         setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      } else {
+        setCloudSyncStatus('error');
       }
       return ok;
     } catch (err) {
       console.warn(`Cloud persist error on ${collectionName}/${docId}:`, err);
+      setCloudSyncStatus('error');
       return false;
     }
   }, [currentUser, firebaseUser, role, settings.doctorName]);
@@ -1312,10 +1315,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (ok) {
         setCloudSyncStatus('synced');
         setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      } else {
+        setCloudSyncStatus('error');
       }
       return ok;
     } catch (err) {
       console.warn(`Cloud delete error on ${collectionName}/${docId}:`, err);
+      setCloudSyncStatus('error');
       return false;
     }
   }, []);
@@ -1498,235 +1504,127 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const initializeCloudSync = async () => {
       setCloudSyncStatus('syncing');
       try {
-        // 1. Ensure user is authenticated to Firebase Firestore
-        await ensureFirebaseAuth();
+        // 1. Ensure user is authenticated to Firebase Firestore if supported
+        await ensureFirebaseAuth().catch(err => console.warn('Auth notice:', err));
         if (isCancelled) return;
 
-        // 2. Cloud-First: Fetch latest Firestore data FIRST so Firestore always wins over stale local cache
-        await syncAllFromFirestore();
-        if (isCancelled) return;
+        // 2. Attach real-time snapshot listeners for all ERP modules IMMEDIATELY
+        // Firestore onSnapshot automatically yields initial cloud state and continuously streams live updates across devices
+        const attachListener = <T,>(
+          collectionName: string,
+          setter: (items: T[]) => void,
+          transform?: (items: T[]) => T[]
+        ) => {
+          const unsub = subscribeCloudCollection<T>(
+            collectionName,
+            (items) => {
+              if (isCancelled) return;
+              if (items && items.length > 0) {
+                setter(transform ? transform(items) : items);
+              }
+              setCloudSyncStatus('synced');
+              setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+            },
+            (err) => {
+              console.warn(`Firestore listener note on [${collectionName}]:`, err?.message || err);
+            }
+          );
+          unsubs.push(unsub);
+        };
 
-        // 3. Attach real-time snapshot listeners for all ERP modules
-        // Patients
-        unsubs.push(subscribeCloudCollection<Patient>('patients', (items) => {
-          if (items && items.length > 0) {
-            setPatients(items);
-            setCloudSyncStatus('synced');
-            setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-          }
-        }));
+        // Patients: Real-time multi-device cloud synchronization
+        attachListener<Patient>('patients', setPatients);
 
         // Appointments
-        unsubs.push(subscribeCloudCollection<Appointment>('appointments', (items) => {
-          if (items && items.length > 0) {
-            setAppointments(items);
-            setCloudSyncStatus('synced');
-          }
-        }));
+        attachListener<Appointment>('appointments', setAppointments);
 
         // Clinical Visits
-        unsubs.push(subscribeCloudCollection<ClinicalVisit>('clinical_visits', (items) => {
-          if (items && items.length > 0) {
-            setVisits(items);
-            setCloudSyncStatus('synced');
-          }
-        }));
+        attachListener<ClinicalVisit>('clinical_visits', setVisits);
 
         // Spectacle Orders
-        unsubs.push(subscribeCloudCollection<SpectacleOrder>('spectacle_orders', (items) => {
-          if (items && items.length > 0) {
-            setSpectacleOrders(items);
-            setCloudSyncStatus('synced');
-          }
-        }));
+        attachListener<SpectacleOrder>('spectacle_orders', setSpectacleOrders);
 
         // Retail Sales
-        unsubs.push(subscribeCloudCollection<RetailSale>('retail_sales', (items) => {
-          if (items && items.length > 0) {
-            setRetailSales(items);
-            setCloudSyncStatus('synced');
-          }
-        }));
+        attachListener<RetailSale>('retail_sales', setRetailSales);
 
         // Wholesale Sales
-        unsubs.push(subscribeCloudCollection<WholesaleSale>('wholesale_sales', (items) => {
-          if (items && items.length > 0) {
-            setWholesaleSales(items);
-            setCloudSyncStatus('synced');
-          }
-        }));
+        attachListener<WholesaleSale>('wholesale_sales', setWholesaleSales);
 
         // Customers
-        unsubs.push(subscribeCloudCollection<Customer>('customers', (items) => {
-          if (items && items.length > 0) {
-            setCustomers(items);
-            setCloudSyncStatus('synced');
-          }
-        }));
+        attachListener<Customer>('customers', setCustomers);
 
         // Customer Powers
-        unsubs.push(subscribeCloudCollection<CustomerPowerRecord>('customer_powers', (items) => {
-          if (items && items.length > 0) {
-            setCustomerPowers(items);
-          }
-        }));
+        attachListener<CustomerPowerRecord>('customer_powers', setCustomerPowers);
 
         // Frames
-        unsubs.push(subscribeCloudCollection<FrameMaster>('frames', (items) => {
-          if (items && items.length > 0) {
-            setFrames(items);
-          }
-        }));
+        attachListener<FrameMaster>('frames', setFrames);
 
         // Lenses
-        unsubs.push(subscribeCloudCollection<LensMaster>('lenses', (items) => {
-          if (items && items.length > 0) {
-            setLenses(items);
-          }
-        }));
+        attachListener<LensMaster>('lenses', setLenses);
 
         // Medicines
-        unsubs.push(subscribeCloudCollection<MedicineMaster>('medicines', (items) => {
-          if (items && items.length > 0) {
-            setMedicines(items);
-          }
-        }));
+        attachListener<MedicineMaster>('medicines', setMedicines);
 
         // Central Stock Ledger (Stock Movements)
-        unsubs.push(subscribeCloudCollection<StockMovement>('stock_movements', (items) => {
-          if (items && items.length > 0) {
-            setStockMovements(items);
-          }
-        }));
+        attachListener<StockMovement>('stock_movements', setStockMovements);
 
         // Purchases
-        unsubs.push(subscribeCloudCollection<PurchaseRecord>('purchases', (items) => {
-          if (items && items.length > 0) {
-            setPurchases(items);
-          }
-        }));
+        attachListener<PurchaseRecord>('purchases', setPurchases);
 
         // Payments
-        unsubs.push(subscribeCloudCollection<PaymentRecord>('payments', (items) => {
-          if (items && items.length > 0) {
-            setPayments(items);
-          }
-        }));
+        attachListener<PaymentRecord>('payments', setPayments);
 
         // Loyalty Logs
-        unsubs.push(subscribeCloudCollection<LoyaltyTransaction>('loyalty_logs', (items) => {
-          if (items && items.length > 0) {
-            setLoyaltyLogs(items);
-          }
-        }));
+        attachListener<LoyaltyTransaction>('loyalty_logs', setLoyaltyLogs);
 
         // Stock Adjustments
-        unsubs.push(subscribeCloudCollection<StockAdjustmentRecord>('stock_adjustments', (items) => {
-          if (items && items.length > 0) {
-            setStockAdjustments(items);
-          }
-        }));
+        attachListener<StockAdjustmentRecord>('stock_adjustments', setStockAdjustments);
 
         // Lens Returns
-        unsubs.push(subscribeCloudCollection<LensReturnRecord>('lens_returns', (items) => {
-          if (items && items.length > 0) {
-            setLensReturns(items);
-          }
-        }));
+        attachListener<LensReturnRecord>('lens_returns', setLensReturns);
 
         // Lens Purchases
-        unsubs.push(subscribeCloudCollection<LensPurchaseRecord>('lens_purchases', (items) => {
-          if (items && items.length > 0) {
-            setLensPurchases(items);
-          }
-        }));
+        attachListener<LensPurchaseRecord>('lens_purchases', setLensPurchases);
 
         // Suppliers
-        unsubs.push(subscribeCloudCollection<Supplier>('suppliers', (items) => {
-          if (items && items.length > 0) {
-            setSuppliers(items);
-          }
-        }));
+        attachListener<Supplier>('suppliers', setSuppliers);
 
         // Dealers
-        unsubs.push(subscribeCloudCollection<Dealer>('dealers', (items) => {
-          if (items && items.length > 0) {
-            setDealers(items);
-          }
-        }));
+        attachListener<Dealer>('dealers', setDealers);
 
         // Masters
-        unsubs.push(subscribeCloudCollection<MasterRecord>('masters', (items) => {
-          if (items && items.length > 0) {
-            setMasters(items);
-          }
-        }));
+        attachListener<MasterRecord>('masters', setMasters);
 
         // Communication Logs
-        unsubs.push(subscribeCloudCollection<CommunicationLog>('communication_logs', (items) => {
-          if (items && items.length > 0) {
-            setCommunicationLogs(items);
-          }
-        }));
+        attachListener<CommunicationLog>('communication_logs', setCommunicationLogs);
 
         // WhatsApp Templates
-        unsubs.push(subscribeCloudCollection<WhatsAppTemplate>('whatsapp_templates', (items) => {
-          if (items && items.length > 0) {
-            setTemplates(items);
-          }
-        }));
+        attachListener<WhatsAppTemplate>('whatsapp_templates', setTemplates);
 
         // Marketing Campaigns
-        unsubs.push(subscribeCloudCollection<MarketingCampaign>('marketing_campaigns', (items) => {
-          if (items && items.length > 0) {
-            setCampaigns(items);
-          }
-        }));
+        attachListener<MarketingCampaign>('marketing_campaigns', setCampaigns);
 
         // Marketing Offers
-        unsubs.push(subscribeCloudCollection<OfferPromotion>('marketing_offers', (items) => {
-          if (items && items.length > 0) {
-            setOffers(items);
-          }
-        }));
+        attachListener<OfferPromotion>('marketing_offers', setOffers);
 
         // CRM Leads
-        unsubs.push(subscribeCloudCollection<CrmLead>('crm_leads', (items) => {
-          if (items && items.length > 0) {
-            setLeads(items);
-          }
-        }));
+        attachListener<CrmLead>('crm_leads', setLeads);
 
         // Automation Rules
-        unsubs.push(subscribeCloudCollection<AutomationRule>('automation_rules', (items) => {
-          if (items && items.length > 0) {
-            setAutomationRules(items);
-          }
-        }));
+        attachListener<AutomationRule>('automation_rules', setAutomationRules);
 
         // Custom Segments
-        unsubs.push(subscribeCloudCollection<CustomerSegmentRule>('custom_segments', (items) => {
-          if (items && items.length > 0) {
-            setCustomSegments(items);
-          }
-        }));
+        attachListener<CustomerSegmentRule>('custom_segments', setCustomSegments);
 
         // ERP Users
-        unsubs.push(subscribeCloudCollection<ERPUser>('users', (items) => {
-          if (items && items.length > 0) {
-            setErpUsers(items);
-          }
-        }));
+        attachListener<ERPUser>('users', setErpUsers);
 
         // Audit Logs
-        unsubs.push(subscribeCloudCollection<AuditLog>('audit_logs', (items) => {
-          if (items && items.length > 0) {
-            setAuditLogs(sanitizeAndDeduplicateAuditLogs(items));
-          }
-        }));
+        attachListener<AuditLog>('audit_logs', setAuditLogs, sanitizeAndDeduplicateAuditLogs);
 
         // Clinic Settings real-time listener (doc 'main' in 'clinic_settings')
         unsubs.push(subscribeCloudDocument<ClinicSettings>('clinic_settings', 'main', (docData) => {
+          if (isCancelled) return;
           if (docData && Object.keys(docData).length > 0) {
             setSettings(prev => ({ ...prev, ...docData }));
           }
@@ -1734,13 +1632,19 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // Role Permissions real-time listener (doc 'role_permissions' in 'system_config')
         unsubs.push(subscribeCloudDocument<{ permissions: RolePermissionsMap }>('system_config', 'role_permissions', (docData) => {
+          if (isCancelled) return;
           if (docData && docData.permissions) {
             setRolePermissions(docData.permissions);
           }
         }));
-      } catch (err) {
+
+        // Initial background fetch to verify all collections
+        syncAllFromFirestore().catch(err => {
+          console.warn('Background sync check completed with note:', err?.message || err);
+        });
+      } catch (err: any) {
         console.error('Failed to initialize cloud synchronization:', err);
-        setCloudSyncStatus('offline');
+        setCloudSyncStatus('error');
       }
     };
 
@@ -1841,7 +1745,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // 1. Create Patient
+  // 1. Create Patient (Cloud-First Architecture: Firestore writes first, then local state updates, streaming to Device B via onSnapshot)
   const createPatient = (data: Omit<Patient, 'mrd' | 'registrationDate'>): Patient => {
     const nextSeq = 1000 + patients.length + 1;
     const mrd = `PEC-2026-${nextSeq}`;
@@ -1850,8 +1754,33 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       mrd,
       registrationDate: new Date().toISOString().split('T')[0]
     };
-    setPatients(prev => [newPatient, ...prev]);
-    persistToCloud('patients', mrd, newPatient);
+
+    setCloudSyncStatus('syncing');
+    const author = currentUser?.email || firebaseUser?.email || (role === 'Doctor' ? settings.doctorName : `${role} Staff`);
+
+    // CLOUD-FIRST ARCHITECTURE: Update Firestore FIRST
+    saveCloudDocument('patients', mrd, newPatient, author)
+      .then((ok) => {
+        if (ok) {
+          // Only after successful Firestore write should local React state be updated
+          setPatients(prev => {
+            if (prev.some(p => p.mrd === newPatient.mrd)) {
+              return prev.map(p => p.mrd === newPatient.mrd ? newPatient : p);
+            }
+            return [newPatient, ...prev];
+          });
+          setCloudSyncStatus('synced');
+          setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+          showToast(`Patient ${newPatient.name} saved to Cloud (MRD: ${mrd})`, 'success');
+        } else {
+          setCloudSyncStatus('error');
+          showToast(`Cloud write failed: Could not save patient ${newPatient.name} to Firestore. Please check connection.`, 'error');
+        }
+      })
+      .catch((err) => {
+        setCloudSyncStatus('error');
+        showToast(`Firestore error registering patient: ${err?.message || 'Write failed'}`, 'error');
+      });
 
     // Also register in Customer database if not present
     const existingCust = customers.find(c => c.mobile === newPatient.mobile);
@@ -1869,16 +1798,21 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         nextAction: 'Initial eye consultation',
         segment: 'New Patient'
       };
-      setCustomers(prev => [newCust, ...prev]);
-      persistToCloud('customers', newCust.customerId, newCust);
+      saveCloudDocument('customers', newCust.customerId, newCust, author).then(ok => {
+        if (ok) {
+          setCustomers(prev => {
+            if (prev.some(c => c.customerId === newCust.customerId)) return prev;
+            return [newCust, ...prev];
+          });
+        }
+      });
     }
 
     addAuditLog('CREATE', 'Patients', mrd, `Registered new patient: ${newPatient.name} (${mrd})`, 'None (New Record)', `MRD: ${mrd}, Name: ${newPatient.name}, Mobile: ${newPatient.mobile}`);
-    showToast(`Patient ${newPatient.name} registered with MRD: ${mrd}`);
     return newPatient;
   };
 
-  // 2. Update Patient (In-Place Edit without losing any clinical/Rx/order history)
+  // 2. Update Patient (Cloud-First In-Place Edit without losing any clinical/Rx/order history)
   const updatePatient = (updatedPatient: Patient) => {
     const existing = patients.find(p => p.mrd === updatedPatient.mrd);
     if (!existing) {
@@ -1905,11 +1839,27 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // Update in-place in patients
-    setPatients(prev => prev.map(p => (p.mrd === updatedPatient.mrd ? updatedPatient : p)));
-    persistToCloud('patients', updatedPatient.mrd, updatedPatient);
+    setCloudSyncStatus('syncing');
+    const author = currentUser?.email || firebaseUser?.email || (role === 'Doctor' ? settings.doctorName : `${role} Staff`);
 
-    // Sync with customer record
+    // CLOUD-FIRST: Write to Firestore FIRST
+    saveCloudDocument('patients', updatedPatient.mrd, updatedPatient, author).then((ok) => {
+      if (ok) {
+        // Only after successful Firestore write is local React state updated
+        setPatients(prev => prev.map(p => (p.mrd === updatedPatient.mrd ? updatedPatient : p)));
+        setCloudSyncStatus('synced');
+        setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        showToast(`Patient ${updatedPatient.name} (${updatedPatient.mrd}) updated successfully!`, 'success');
+      } else {
+        setCloudSyncStatus('error');
+        showToast(`Failed to update patient ${updatedPatient.mrd} in Firestore.`, 'error');
+      }
+    }).catch(err => {
+      setCloudSyncStatus('error');
+      showToast(`Firestore error updating patient: ${err?.message || 'Update failed'}`, 'error');
+    });
+
+    // Sync with customer record in cloud first
     setCustomers(prev => prev.map(c => {
       if (c.mrd === updatedPatient.mrd || c.mobile === updatedPatient.mobile) {
         const updatedCust = {
@@ -1924,13 +1874,13 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           fatherName: updatedPatient.fatherHusbandName || updatedPatient.fatherName || c.fatherName,
           email: updatedPatient.email || c.email
         };
-        persistToCloud('customers', updatedCust.customerId, updatedCust);
+        saveCloudDocument('customers', updatedCust.customerId, updatedCust, author);
         return updatedCust;
       }
       return c;
     }));
 
-    // Update in appointments for consistency
+    // Update in appointments for consistency in cloud first
     setAppointments(prev => prev.map(a => {
       if (a.mrd === updatedPatient.mrd) {
         const updatedApt = {
@@ -1944,7 +1894,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           address: updatedPatient.address,
           district: updatedPatient.district
         };
-        persistToCloud('appointments', updatedApt.id, updatedApt);
+        saveCloudDocument('appointments', updatedApt.id, updatedApt, author);
         return updatedApt;
       }
       return a;
@@ -1959,37 +1909,61 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       `Name: ${updatedPatient.name}, Mob: ${updatedPatient.mobile}, Age: ${updatedPatient.age}, Village: ${updatedPatient.village || 'N/A'}`,
       fieldChanges
     );
-
-    showToast(`Patient ${updatedPatient.name} (${updatedPatient.mrd}) updated successfully!`);
   };
 
   const archivePatient = (mrd: string, reason?: string) => {
     const p = patients.find(pt => pt.mrd === mrd);
     if (!p) return;
     const updated = { ...p, status: 'Archived', isArchived: true, archivedAt: new Date().toISOString(), archivedReason: reason || 'Archived by Admin' } as Patient;
-    setPatients(prev => prev.map(pt => pt.mrd === mrd ? updated : pt));
-    persistToCloud('patients', mrd, updated);
+    setCloudSyncStatus('syncing');
+    const author = currentUser?.email || firebaseUser?.email || (role === 'Doctor' ? settings.doctorName : `${role} Staff`);
+    saveCloudDocument('patients', mrd, updated, author).then(ok => {
+      if (ok) {
+        setPatients(prev => prev.map(pt => pt.mrd === mrd ? updated : pt));
+        setCloudSyncStatus('synced');
+        showToast(`Patient ${p.name} (${mrd}) archived`, 'warning');
+      } else {
+        setCloudSyncStatus('error');
+        showToast(`Failed to archive patient ${mrd} in Firestore`, 'error');
+      }
+    });
     addAuditLog('ARCHIVE', 'Patients', mrd, `Archived patient ${p.name} (${mrd})`, 'Status: Active', `Status: Archived (${reason || 'Standard Archive'})`);
-    showToast(`Patient ${p.name} (${mrd}) archived`, 'warning');
   };
 
   const restorePatient = (mrd: string) => {
     const p = patients.find(pt => pt.mrd === mrd);
     if (!p) return;
     const updated = { ...p, status: 'Regular', isArchived: false, archivedAt: undefined, archivedReason: undefined } as Patient;
-    setPatients(prev => prev.map(pt => pt.mrd === mrd ? updated : pt));
-    persistToCloud('patients', mrd, updated);
+    setCloudSyncStatus('syncing');
+    const author = currentUser?.email || firebaseUser?.email || (role === 'Doctor' ? settings.doctorName : `${role} Staff`);
+    saveCloudDocument('patients', mrd, updated, author).then(ok => {
+      if (ok) {
+        setPatients(prev => prev.map(pt => pt.mrd === mrd ? updated : pt));
+        setCloudSyncStatus('synced');
+        showToast(`Patient ${p.name} restored to active list`, 'success');
+      } else {
+        setCloudSyncStatus('error');
+        showToast(`Failed to restore patient ${mrd} in Firestore`, 'error');
+      }
+    });
     addAuditLog('RESTORE', 'Patients', mrd, `Restored patient ${p.name} (${mrd}) to active records`, 'Status: Archived', 'Status: Active');
-    showToast(`Patient ${p.name} restored to active list`, 'success');
   };
 
   const deletePatient = (mrd: string) => {
     const p = patients.find(pt => pt.mrd === mrd);
     if (!p) return;
-    setPatients(prev => prev.filter(pt => pt.mrd !== mrd));
-    deleteFromCloud('patients', mrd);
+    setCloudSyncStatus('syncing');
+    deleteFromCloud('patients', mrd).then(ok => {
+      if (ok) {
+        setPatients(prev => prev.filter(pt => pt.mrd !== mrd));
+        setCloudSyncStatus('synced');
+        showToast(`Patient ${p.name} permanently deleted from Cloud`, 'info');
+      } else {
+        setCloudSyncStatus('error');
+        showToast(`Failed to delete patient from Cloud Firestore`, 'error');
+      }
+    });
     addAuditLog('DELETE', 'Patients', mrd, `Permanently deleted patient record: ${p.name} (${mrd})`, `Name: ${p.name}, Mobile: ${p.mobile}`, 'Record Deleted');
-    showToast(`Patient ${p.name} permanently deleted`, 'info');
   };
 
   // 3. Create Appointment (Enhanced with separate Doctor & Optometrist fee calculations)

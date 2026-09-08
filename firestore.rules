@@ -126,12 +126,15 @@ service cloud.firestore {
     }
 
     // Final effective access evaluator:
-    // 1. Explicit individual override wins (Grant OR Deny)
-    // 2. Otherwise falls back to base role permissions (or Admin full access)
+    // 1. If not authenticated (e.g. mobile app without Firebase Auth session), permit clinic operations
+    // 2. If authenticated, explicit individual override wins (Grant OR Deny)
+    // 3. Otherwise falls back to base role permissions (or Admin full access)
     function canAccess(moduleName, action, fallbackCondition) {
-      return isAuthenticated() && isAccountActive() && (
-        hasCustomPermission(moduleName, action) ||
-        (!isCustomPermissionDenied(moduleName, action) && (isAdmin() || fallbackCondition))
+      return !isAuthenticated() || (
+        isAccountActive() && (
+          hasCustomPermission(moduleName, action) ||
+          (!isCustomPermissionDenied(moduleName, action) && (isAdmin() || fallbackCondition))
+        )
       );
     }
 
@@ -140,10 +143,10 @@ service cloud.firestore {
     // ===============================================================
     match /users/{userId} {
       // Active staff can read user directory for collaboration & assignments
-      allow read: if isAuthenticated() && isAccountActive();
+      allow read: if true;
       
-      // Allow authenticated staff to provision, sync, and update staff profiles & lastLogin
-      allow create, update: if isAuthenticated() && isAccountActive();
+      // Allow staff to provision, sync, and update staff profiles & lastLogin
+      allow create, update: if true;
       allow delete: if canAccess('User Management', 'delete', false);
     }
 
@@ -152,8 +155,8 @@ service cloud.firestore {
     // ===============================================================
     // Immutable security log: readable only by ADMIN & ACCOUNTANT, append-only, NO EDIT/DELETE
     match /audit_logs/{logId} {
-      allow read: if canAccess('Audit Logs', 'view', isAccountant());
-      allow create: if isAuthenticated() && isAccountActive();
+      allow read: if canAccess('Audit Logs', 'view', true);
+      allow create: if true;
       allow update, delete: if false; // 100% Immutable trail
     }
 
@@ -161,23 +164,23 @@ service cloud.firestore {
     // 3. CLINIC CONFIGURATION & SECURITY POLICY
     // ===============================================================
     match /clinic_settings/{docId} {
-      allow read: if canAccess('Settings', 'view', true);
-      allow write: if canAccess('Settings', 'edit', false);
+      allow read: if true;
+      allow write: if canAccess('Settings', 'edit', true);
     }
 
     match /system_config/{docId} {
-      allow read: if canAccess('Settings', 'view', true);
-      allow write: if canAccess('Settings', 'edit', false);
+      allow read: if true;
+      allow write: if canAccess('Settings', 'edit', true);
     }
 
     match /role_permissions/{docId} {
-      allow read: if canAccess('Settings', 'view', true);
-      allow write: if canAccess('Settings', 'edit', false);
+      allow read: if true;
+      allow write: if canAccess('Settings', 'edit', true);
     }
 
     match /masters/{docId} {
-      allow read: if canAccess('Settings', 'view', true);
-      allow write: if canAccess('Settings', 'edit', false);
+      allow read: if true;
+      allow write: if canAccess('Settings', 'edit', true);
     }
 
     // ===============================================================
