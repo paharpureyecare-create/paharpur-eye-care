@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useErp } from '../context/ErpContext';
 import { LensMaster, StockAdjustmentRecord, LensReturnRecord, LensPurchaseRecord, LensStockType } from '../types';
+import { LensInventoryCatalog } from './LensInventoryCatalog';
 import {
   Disc,
   Plus,
@@ -627,317 +628,47 @@ export const LensInventoryView: React.FC = () => {
 
       {/* TAB 1: EXACT POWER LENS MASTER CATALOG */}
       {activeTab === 'catalog' && (
-        <div className="space-y-4">
-          {/* Advanced Power Filter Toolbar */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 text-xs">
-              <div className="lg:col-span-2 relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search SKU, Product, Brand, Rack, SPH, CYL..."
-                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-teal-500 focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <select
-                  value={filterType}
-                  onChange={e => setFilterType(e.target.value)}
-                  className="w-full py-2 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-700 focus:bg-white"
-                >
-                  <option value="All">All Lens Stock Types</option>
-                  {availableLensTypeOptions.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <select
-                  value={filterSph}
-                  onChange={e => setFilterSph(e.target.value)}
-                  className="w-full py-2 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-700 focus:bg-white"
-                >
-                  <option value="All">All SPH Powers</option>
-                  {uniqueSphValues.map(s => (
-                    <option key={s} value={s}>SPH: {s}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <select
-                  value={filterCyl}
-                  onChange={e => setFilterCyl(e.target.value)}
-                  className="w-full py-2 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-700 focus:bg-white"
-                >
-                  <option value="All">All CYL Powers</option>
-                  {uniqueCylValues.map(c => (
-                    <option key={c} value={c}>CYL: {c}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <select
-                  value={filterStatus}
-                  onChange={e => setFilterStatus(e.target.value)}
-                  className="w-full py-2 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-700 focus:bg-white"
-                >
-                  <option value="All">All Stock Status</option>
-                  <option value="Available">Available Only</option>
-                  <option value="Low Stock">Low Stock</option>
-                  <option value="Out of Stock">Out of Stock</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Quick Filter Tags */}
-            <div className="flex items-center justify-between gap-2 flex-wrap text-xs pt-1 border-t border-slate-100">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] font-bold text-slate-500">Lens Type:</span>
-                {['All', 'BLUE CUT GREEN', 'BLUE CUT BLUE', 'SINGLE VISION SPHERICAL', 'SINGLE VISION CYLINDRICAL / TORIC', 'PROGRESSIVE BLUE CUT'].map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setFilterType(t)}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                      filterType === t
-                        ? 'bg-teal-600 text-white shadow-2xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-
-              {(filterType !== 'All' || filterSph !== 'All' || filterCyl !== 'All' || filterStatus !== 'All' || search) && (
-                <button
-                  onClick={() => {
-                    setFilterType('All');
-                    setFilterSph('All');
-                    setFilterCyl('All');
-                    setFilterStatus('All');
-                    setSearch('');
-                  }}
-                  className="text-teal-700 hover:underline font-bold text-[11px] cursor-pointer"
-                >
-                  Clear All Filters
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Lens Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-slate-900 text-white font-bold uppercase">
-                  <tr>
-                    <th className="py-3 px-4">Lens SKU & Product</th>
-                    <th className="py-3 px-4">Stock Type & Coating</th>
-                    <th className="py-3 px-4 bg-slate-800 text-teal-200">Exact Prescription Power</th>
-                    <th className="py-3 px-4">Rates (Cost / B2B / Retail)</th>
-                    <th className="py-3 px-4">Current Stock</th>
-                    <th className="py-3 px-4">Location</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400 text-xs">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Disc className="w-8 h-8 text-slate-300 animate-spin" />
-                          <p className="font-semibold">No exact power lens SKU matches your filter criteria.</p>
-                          <button
-                            onClick={() => setShowBatchModal(true)}
-                            className="text-teal-600 underline font-bold mt-1"
-                          >
-                            Generate power variants using 1-Click Generator
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    filtered.map(lens => (
-                      <tr key={lens.lensCode} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="font-mono font-bold text-slate-900 text-xs bg-slate-100 inline-block px-1.5 py-0.5 rounded border border-slate-200">
-                            {lens.lensCode}
-                          </div>
-                          <div className="font-bold text-slate-800 text-sm mt-0.5">
-                            {lens.productName || lens.brand}
-                          </div>
-                          <div className="text-[11px] text-slate-500 font-medium">
-                            {lens.company} • {lens.brand}
-                          </div>
-                        </td>
-
-                        <td className="py-3 px-4">
-                          <span className="font-bold text-teal-900 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded text-[11px] block w-max">
-                            {lens.lensType || lens.category}
-                          </span>
-                          <span className="text-[11px] text-slate-600 block mt-0.5 font-medium">
-                            {lens.coating} • {lens.index} Index
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-medium">
-                            {lens.diameter} • {lens.material || 'CR-39'}
-                          </span>
-                        </td>
-
-                        {/* EXACT PRESCRIPTION POWER */}
-                        <td className="py-3 px-4 bg-teal-50/40 border-l border-r border-teal-100">
-                          <div className="grid grid-cols-2 gap-x-2 gap-y-1 font-mono text-xs">
-                            <div className="bg-white px-2 py-1 rounded border border-teal-200 shadow-2xs">
-                              <span className="text-[10px] text-slate-500 font-bold block">SPH</span>
-                              <span className="font-black text-slate-900 text-sm">{lens.sph || '0.00'}</span>
-                            </div>
-                            <div className="bg-white px-2 py-1 rounded border border-teal-200 shadow-2xs">
-                              <span className="text-[10px] text-slate-500 font-bold block">CYL</span>
-                              <span className="font-black text-indigo-900 text-sm">{lens.cyl || '0.00'}</span>
-                            </div>
-                            <div className="bg-white px-2 py-1 rounded border border-slate-200">
-                              <span className="text-[10px] text-slate-400 font-bold block">AXIS</span>
-                              <span className="font-bold text-slate-700">{lens.axis || '—'}</span>
-                            </div>
-                            <div className="bg-white px-2 py-1 rounded border border-slate-200">
-                              <span className="text-[10px] text-slate-400 font-bold block">ADD</span>
-                              <span className="font-bold text-slate-700">{lens.add || '—'}</span>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="py-3 px-4 font-mono">
-                          <div className="font-bold text-emerald-700 text-xs">
-                            Retail: ₹{lens.retailRate}
-                          </div>
-                          <div className="text-[11px] text-indigo-700 font-semibold">
-                            Wholesale: ₹{lens.wholesaleRate}
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            Cost: ₹{lens.purchaseRate} • MRP: ₹{lens.mrp}
-                          </div>
-                        </td>
-
-                        <td className="py-3 px-4">
-                          <div className="font-black text-base text-slate-900">
-                            {lens.currentStock} <span className="text-xs font-semibold text-slate-500">pairs</span>
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-medium">
-                            Reorder: {lens.reorderLevel} pairs
-                          </div>
-                        </td>
-
-                        <td className="py-3 px-4">
-                          <span className="text-xs font-medium text-slate-700 block">
-                            📍 {lens.rackLocation || 'Rack A - Shelf 01'}
-                          </span>
-                          {lens.supplier && (
-                            <span className="text-[10px] text-slate-400 block truncate max-w-[120px]">
-                              {lens.supplier}
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="py-3 px-4">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              lens.status === 'Available'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : lens.status === 'Low Stock'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-rose-100 text-rose-800'
-                            }`}
-                          >
-                            {lens.status}
-                          </span>
-                        </td>
-
-                        <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
-                          {hasPermission('Lenses', 'edit') && (
-                            <button
-                              onClick={() => {
-                                checkAndExecuteAction('Lenses', 'edit', () => {
-                                  setSelectedLensCodeForAdjust(lens.lensCode);
-                                  setShowAdjustModal(true);
-                                }, 'Audit / Adjust Stock');
-                              }}
-                              className="p-1.5 text-slate-600 hover:bg-slate-100 rounded cursor-pointer transition-colors"
-                              title="Audit / Adjust Stock"
-                            >
-                              <SlidersHorizontal className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              checkAndExecuteAction('Purchases', 'create', () => {
-                                setStockInForm({
-                                  lensCode: lens.lensCode,
-                                  productName: lens.productName || lens.brand,
-                                  company: lens.company,
-                                  brand: lens.brand,
-                                  category: lens.category,
-                                  lensType: lens.lensType || 'BLUE CUT GREEN',
-                                  sph: lens.sph || '+0.25',
-                                  cyl: lens.cyl || '+0.25',
-                                  axis: lens.axis || '180',
-                                  add: lens.add || '—',
-                                  supplier: lens.supplier || suppliers[0]?.company || 'Essilor Optical India Pvt Ltd',
-                                  invoiceNumber: `INV-PUR-${Date.now().toString().slice(-4)}`,
-                                  purchaseDate: new Date().toISOString().split('T')[0],
-                                  quantity: 20,
-                                  purchaseRate: lens.purchaseRate,
-                                  rack: lens.rackLocation || 'Rack A - Shelf 01'
-                                });
-                                setShowStockInModal(true);
-                              }, 'Quick Stock IN');
-                            }}
-                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded cursor-pointer transition-colors"
-                            title="Quick Stock IN"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                          {hasPermission('Lenses', 'edit') && (
-                            <button
-                              onClick={() => {
-                                checkAndExecuteAction('Lenses', 'edit', () => setEditingLens(lens), 'Edit Lens SKU');
-                              }}
-                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded cursor-pointer transition-colors"
-                              title="Edit Lens SKU & Power"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {hasPermission('Lenses', 'delete') && (
-                            <button
-                              onClick={() => {
-                                checkAndExecuteAction('Lenses', 'delete', () => {
-                                  if (window.confirm(`Delete power SKU ${lens.lensCode}?`)) {
-                                    deleteLens(lens.lensCode);
-                                    showToast(`Deleted lens SKU ${lens.lensCode}`, 'success');
-                                  }
-                                }, 'Delete Lens SKU');
-                              }}
-                              className="p-1.5 text-rose-500 hover:bg-rose-50 rounded cursor-pointer transition-colors"
-                              title="Delete Lens SKU"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        <LensInventoryCatalog
+          onEditLens={lens => setEditingLens(lens)}
+          onAdjustStock={lensCode => {
+            setSelectedLensCodeForAdjust(lensCode);
+            setShowAdjustModal(true);
+          }}
+          onStockIn={lens => {
+            setStockInForm({
+              lensCode: lens.lensCode,
+              productName: lens.productName || lens.brand,
+              company: lens.company,
+              brand: lens.brand,
+              category: lens.category,
+              lensType: lens.lensType || 'BLUE CUT GREEN',
+              sph: lens.sph || '+0.25',
+              cyl: lens.cyl || '+0.25',
+              axis: lens.axis || '180',
+              add: lens.add || '—',
+              supplier: lens.supplier || suppliers[0]?.company || 'Essilor Optical India Pvt Ltd',
+              invoiceNumber: `INV-PUR-${Date.now().toString().slice(-4)}`,
+              purchaseDate: new Date().toISOString().split('T')[0],
+              quantity: 20,
+              purchaseRate: lens.purchaseRate,
+              rack: lens.rackLocation || 'Rack A - Shelf 01'
+            });
+            setShowStockInModal(true);
+          }}
+          onDeleteLens={lensCode => {
+            checkAndExecuteAction('Lenses', 'delete', () => {
+              if (window.confirm(`Delete power SKU ${lensCode}?`)) {
+                deleteLens(lensCode);
+                showToast(`Deleted lens SKU ${lensCode}`, 'success');
+              }
+            }, 'Delete Lens SKU');
+          }}
+          onOpenBatchModal={() => setShowBatchModal(true)}
+          onOpenReturnModal={code => {
+            if (code) setReturnLensCode(code);
+            setShowReturnModal(true);
+          }}
+        />
       )}
 
       {/* TAB 2: LENS PRODUCTS & POWER SERIES GROUPING */}

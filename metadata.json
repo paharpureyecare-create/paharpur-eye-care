@@ -1,6 +1,6 @@
 {
   "name": "Paharpur Eye Care ERP",
   "description": "Advanced AI-Powered Optical + Eye Clinic ERP with Natural Language Assistant (বাংলা/English), Vision Prescription OCR, Power Evolution Comparison, Patient & Customer 360, Inventory Matrix, and Google Sheets Live Sync.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["microphone", "camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

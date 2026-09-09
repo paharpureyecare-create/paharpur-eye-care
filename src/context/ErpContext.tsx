@@ -334,6 +334,8 @@ interface ErpContextType {
   syncAllFromFirestore: () => Promise<void>;
   firebaseUser: FirebaseUser | null;
   authLoading: boolean;
+  authError: string | null;
+  retryAuthVerification: () => void;
   erpUsers: ERPUser[];
   currentUser: ERPUser | null;
   setCurrentUser: React.Dispatch<React.SetStateAction<ERPUser | null>>;
@@ -889,91 +891,140 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     ];
   });
-  const [currentUser, setCurrentUser] = useState<ERPUser | null>(() => {
-    try {
-      const savedUid = localStorage.getItem('PAHARPUR_ACTIVE_STAFF_UID');
-      const savedUsers = localStorage.getItem('PAHARPUR_ERP_USERS');
-      if (savedUsers) {
-        const parsed: ERPUser[] = JSON.parse(savedUsers);
-        if (savedUid) {
-          const found = parsed.find(u => u.uid === savedUid);
-          if (found) return found;
-        }
-        if (parsed.length > 0) return parsed[0];
-      }
-    } catch (_) {}
-    return null;
-  });
+  // Explicit authenticated user session: null until verified or explicitly logged in
+  const [currentUser, setCurrentUser] = useState<ERPUser | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+
+  // Keep a stable ref of erpUsers to prevent tearing down auth listener on every state change
+  const erpUsersRef = useRef<ERPUser[]>(erpUsers);
+  useEffect(() => {
+    erpUsersRef.current = erpUsers;
+  }, [erpUsers]);
 
   useEffect(() => {
     localStorage.setItem('PAHARPUR_ERP_USERS', JSON.stringify(erpUsers));
   }, [erpUsers]);
 
-  // Keep currentUser synchronized with erpUsers whenever permissions or roles change
+  // Keep currentUser synchronized with erpUsers whenever permissions or roles change (ONLY if already logged in)
   useEffect(() => {
     if (currentUser) {
       const latest = erpUsers.find(u => u.uid === currentUser.uid);
       if (latest && JSON.stringify(latest) !== JSON.stringify(currentUser)) {
         setCurrentUser(latest);
       }
-    } else if (erpUsers.length > 0) {
-      const savedUid = localStorage.getItem('PAHARPUR_ACTIVE_STAFF_UID');
-      const initial = (savedUid ? erpUsers.find(u => u.uid === savedUid) : null) || erpUsers[0];
-      if (initial) {
-        setCurrentUser(initial);
-        setRole(initial.role);
-      }
     }
-  }, [erpUsers]);
+  }, [erpUsers, currentUser]);
 
-  // Auth State Listener
+  // Auth State Listener with safety timeout to ensure startup NEVER blocks permanently
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      setFirebaseUser(user);
-      if (user) {
-        const matched = erpUsers.find(u => u.email.toLowerCase() === (user.email || '').toLowerCase() || u.uid === user.uid);
-        if (matched) {
-          if (matched.status === 'Disabled') {
-            await logoutUser();
+    let isMounted = true;
+
+    // Safety timeout: transition authLoading to false after 2000ms if Firebase Auth observer is delayed
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) {
+        console.warn('PEC Auth Notice: Startup verification timer expired; unblocking UI to show Login/Workstation.');
+        setAuthLoading(false);
+      }
+    }, 2000);
+
+    const unsub = onAuthStateChanged(
+      auth,
+      async (user) => {
+        if (!isMounted) return;
+        clearTimeout(safetyTimer);
+        setFirebaseUser(user);
+
+        try {
+          if (user) {
+            const currentList = erpUsersRef.current;
+            const matched = currentList.find(
+              u => u.email.toLowerCase() === (user.email || '').toLowerCase() || u.uid === user.uid
+            );
+
+            if (matched) {
+              if (matched.status === 'Disabled') {
+                await logoutUser();
+                setCurrentUser(null);
+                setAuthLoading(false);
+                showToast('Your staff account has been disabled by the Administrator. Access blocked.', 'error');
+                return;
+              }
+              setCurrentUser(matched);
+              setRole(matched.role);
+              localStorage.setItem('PAHARPUR_ACTIVE_STAFF_UID', matched.uid);
+            } else {
+              const assignedRole: UserRole = (user.email === 'paharpureyecare@gmail.com' || (user.email && user.email.includes('admin'))) ? 'Admin' : 'Receptionist';
+              const newProfile: ERPUser = {
+                uid: user.uid,
+                email: user.email || 'user@paharpureyecare.com',
+                displayName: user.displayName || user.email?.split('@')[0] || 'Staff User',
+                role: assignedRole,
+                status: 'Active',
+                createdAt: new Date().toISOString()
+              };
+              setErpUsers(prev => [newProfile, ...prev.filter(u => u.uid !== newProfile.uid)]);
+              setCurrentUser(newProfile);
+              setRole(assignedRole);
+              localStorage.setItem('PAHARPUR_ACTIVE_STAFF_UID', newProfile.uid);
+              saveCloudDocument('users', newProfile.uid, newProfile).catch(() => {});
+            }
+          } else {
+            // Explicit unauthenticated state: do not automatically log in or bypass
             setCurrentUser(null);
-            setAuthLoading(false);
-            showToast('Your staff account has been disabled by the Administrator. Access blocked. / আপনার অ্যাকাউন্টটি নিষ্ক্রিয় করা হয়েছে।', 'error');
-            return;
           }
+          setAuthError(null);
+        } catch (err: any) {
+          console.error('PEC Auth Error: Verification exception:', err);
+          setAuthError(err?.message || 'Clinic session verification error');
+        } finally {
+          if (isMounted) {
+            setAuthLoading(false);
+          }
+        }
+      },
+      (error) => {
+        if (!isMounted) return;
+        clearTimeout(safetyTimer);
+        console.error('PEC Auth Error: Firebase Auth observer reported error:', error);
+        setAuthError(error?.message || 'Authentication service error');
+        setAuthLoading(false);
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      clearTimeout(safetyTimer);
+      unsub();
+    };
+  }, []);
+
+  const retryAuthVerification = useCallback(() => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const activeUser = auth.currentUser;
+      setFirebaseUser(activeUser);
+      if (activeUser) {
+        const matched = erpUsersRef.current.find(
+          u => u.email.toLowerCase() === (activeUser.email || '').toLowerCase() || u.uid === activeUser.uid
+        );
+        if (matched && matched.status !== 'Disabled') {
           setCurrentUser(matched);
           setRole(matched.role);
-          localStorage.setItem('PAHARPUR_ACTIVE_STAFF_UID', matched.uid);
-        } else {
-          const assignedRole: UserRole = (user.email === 'paharpureyecare@gmail.com' || (user.email && user.email.includes('admin'))) ? 'Admin' : 'Receptionist';
-          const newProfile: ERPUser = {
-            uid: user.uid,
-            email: user.email || 'user@paharpureyecare.com',
-            displayName: user.displayName || user.email?.split('@')[0] || 'Staff User',
-            role: assignedRole,
-            status: 'Active',
-            createdAt: new Date().toISOString()
-          };
-          setErpUsers(prev => [newProfile, ...prev.filter(u => u.uid !== newProfile.uid)]);
-          setCurrentUser(newProfile);
-          setRole(assignedRole);
-          localStorage.setItem('PAHARPUR_ACTIVE_STAFF_UID', newProfile.uid);
-          saveCloudDocument('users', newProfile.uid, newProfile).catch(() => {});
         }
       } else {
-        // When not logged in via Firebase Auth, default to the saved active staff member or Master Admin
-        const savedUid = localStorage.getItem('PAHARPUR_ACTIVE_STAFF_UID');
-        const fallback = (savedUid ? erpUsers.find(u => u.uid === savedUid) : null) || erpUsers[0] || null;
-        if (fallback) {
-          setCurrentUser(fallback);
-          setRole(fallback.role);
-        }
+        setCurrentUser(null);
       }
-      setAuthLoading(false);
-    });
-    return () => unsub();
-  }, [erpUsers]);
+    } catch (err: any) {
+      setAuthError(err?.message || 'Verification retry failed');
+    } finally {
+      setTimeout(() => {
+        setAuthLoading(false);
+      }, 500);
+    }
+  }, []);
 
   // Proactive real-time session invalidation if an active logged-in user is disabled by Admin
   useEffect(() => {
@@ -6560,6 +6611,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         syncAllFromFirestore,
         firebaseUser,
         authLoading,
+        authError,
+        retryAuthVerification,
         erpUsers,
         currentUser,
         setCurrentUser,

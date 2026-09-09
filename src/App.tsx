@@ -38,7 +38,7 @@ import { PermissionDeniedCard } from './components/PermissionDeniedCard';
 import { getModuleForTab } from './services/permissionService';
 import { LoginPage } from './components/LoginPage';
 import { MobileBottomNav } from './components/MobileBottomNav';
-import { CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, AlertTriangle, ShieldAlert, RefreshCw, LogIn } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
   const {
@@ -185,28 +185,95 @@ const MainLayout: React.FC = () => {
 };
 
 const AppRoot: React.FC = () => {
-  const { authLoading, currentUser } = useErp();
+  const { authLoading, authError, retryAuthVerification, currentUser } = useErp();
+  const [skipVerification, setSkipVerification] = React.useState(false);
+  const [showSkipOption, setShowSkipOption] = React.useState(false);
 
-  if (authLoading) {
+  React.useEffect(() => {
+    // Show manual skip button if verification takes more than 1 second
+    const timer = setTimeout(() => {
+      setShowSkipOption(true);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // 1. Explicit Error State: Connection error or Security Rules rejection
+  if (authError && !skipVerification && !currentUser) {
     return (
-      <div className="min-h-screen w-screen bg-slate-950 flex flex-col items-center justify-center text-slate-100 font-sans">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-14 h-14 rounded-3xl bg-gradient-to-tr from-teal-700 to-teal-500 flex items-center justify-center text-white shadow-2xl shadow-teal-500/30 animate-pulse border border-teal-400/40">
-            <span className="text-xl font-black tracking-tighter">PEC</span>
+      <div className="min-h-screen w-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-slate-100 font-sans">
+        <div className="max-w-md w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center text-center">
+          <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-4">
+            <ShieldAlert className="w-7 h-7" />
           </div>
-          <div className="flex items-center gap-3">
-            <span className="w-4 h-4 border-2 border-teal-400 border-t-transparent rounded-full animate-spin"></span>
-            <span className="text-xs font-semibold text-slate-300">Verifying Secure Clinic Session...</span>
+          <h2 className="text-lg font-bold text-slate-100 mb-1">Session Verification Note</h2>
+          <p className="text-xs text-slate-400 mb-5 leading-relaxed">
+            The clinic workstation encountered an error while verifying your cloud session.
+          </p>
+
+          <div className="w-full bg-slate-950/80 border border-rose-500/20 rounded-2xl p-3.5 mb-6 text-left">
+            <div className="text-[11px] font-mono text-rose-400 break-words line-clamp-4">
+              {authError}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
+            <button
+              onClick={retryAuthVerification}
+              className="w-full sm:flex-1 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Retry Check
+            </button>
+            <button
+              onClick={() => setSkipVerification(true)}
+              className="w-full sm:flex-1 py-2.5 px-4 bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-lg shadow-teal-900/20 transition-colors"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              Staff Login
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
+  // 2. Explicit Loading State with Safe Completion Path
+  if (authLoading && !skipVerification && !currentUser) {
+    return (
+      <div className="min-h-screen w-screen bg-slate-950 flex flex-col items-center justify-center text-slate-100 font-sans p-4">
+        <div className="flex flex-col items-center gap-5 text-center max-w-sm">
+          <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-teal-700 to-teal-500 flex items-center justify-center text-white shadow-2xl shadow-teal-500/30 animate-pulse border border-teal-400/40">
+            <span className="text-2xl font-black tracking-tighter">PEC</span>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="w-4 h-4 border-2 border-teal-400 border-t-transparent rounded-full animate-spin"></span>
+              <span className="text-sm font-semibold text-slate-200">Verifying Secure Clinic Session...</span>
+            </div>
+            <span className="text-xs text-slate-500 font-normal">
+              Checking cloud authorization &amp; workstation status
+            </span>
+          </div>
+
+          {showSkipOption && (
+            <button
+              onClick={() => setSkipVerification(true)}
+              className="mt-2 py-1.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 text-xs font-medium transition-colors"
+            >
+              Continue to Staff Login &rarr;
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Explicit Unauthenticated State: Show Login screen
   if (!currentUser) {
     return <LoginPage />;
   }
 
+  // 4. Explicit Authenticated State: Load full ERP workstation
   return <MainLayout />;
 };
 

@@ -18,6 +18,7 @@
     <meta name="apple-mobile-web-app-title" content="Paharpur ERP" />
     <meta name="application-name" content="Paharpur Eye Care ERP" />
     <meta name="format-detection" content="telephone=no" />
+    <!-- Manifest link for PWA -->
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
@@ -25,17 +26,96 @@
 
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script>
-      // PWA Service Worker Registration
+      // Paharpur ERP - Bulletproof PWA Service Worker Registration & Dev-Mode Auto-Cleanup
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-              console.log('Paharpur ERP ServiceWorker registered: ', registration.scope);
-            })
-            .catch((err) => {
-              console.log('Paharpur ERP ServiceWorker registration failed: ', err);
-            });
-        });
+        const isDevOrIframe = 
+          window.location.hostname === 'localhost' || 
+          window.location.hostname === '127.0.0.1' || 
+          window.location.port === '3000' ||
+          window.self !== window.top; // Preview iframe
+
+        if (isDevOrIframe) {
+          // Proactively unregister any stale service workers and purge caches in dev/iframe
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            for (const reg of registrations) {
+              reg.unregister().then(() => {
+                console.log('[PWA SW] Unregistered service worker in dev/iframe environment');
+              });
+            }
+          }).catch(() => {});
+        } else {
+          let refreshing = false;
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!refreshing) {
+              refreshing = true;
+              console.log('[PWA SW] New version activated! Reloading to apply updates...');
+              window.location.reload();
+            }
+          });
+
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+              .then((registration) => {
+                console.log('[PWA SW] Registered with scope:', registration.scope);
+
+                // Check for newer version immediately on load
+                registration.update();
+
+                // Auto-check for updates every 10 minutes
+                setInterval(() => {
+                  registration.update();
+                }, 10 * 60 * 1000);
+
+                // Check for update whenever user brings the app back to foreground
+                document.addEventListener('visibilitychange', () => {
+                  if (document.visibilityState === 'visible') {
+                    registration.update();
+                  }
+                });
+
+                // When a new service worker is waiting, trigger skipWaiting immediately
+                if (registration.waiting) {
+                  registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                }
+
+                registration.addEventListener('updatefound', () => {
+                  const newWorker = registration.installing;
+                  if (newWorker) {
+                    newWorker.addEventListener('statechange', () => {
+                      if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        console.log('[PWA SW] New update downloaded. Activating immediately...');
+                        newWorker.postMessage({ type: 'SKIP_WAITING' });
+                      }
+                    });
+                  }
+                });
+              })
+              .catch((err) => {
+                console.warn('[PWA SW] Registration failed:', err);
+              });
+          });
+        }
+
+        // Global manual cache purge & reload helper (can be triggered from UI or console)
+        window.__forcePwaReload = async function() {
+          try {
+            if ('serviceWorker' in navigator) {
+              const registrations = await navigator.serviceWorker.getRegistrations();
+              for (const reg of registrations) {
+                await reg.unregister();
+              }
+            }
+            if ('caches' in window) {
+              const keys = await caches.keys();
+              for (const key of keys) {
+                await caches.delete(key);
+              }
+            }
+          } catch (e) {
+            console.error('Error clearing cache:', e);
+          }
+          window.location.href = window.location.pathname + '?nocache=' + Date.now();
+        };
       }
     </script>
   </head>

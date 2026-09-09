@@ -1,9 +1,10 @@
-// Paharpur Eye Care ERP - Progressive Web App Service Worker
-const CACHE_NAME = 'paharpur-erp-v1';
+// Paharpur Eye Care ERP - Progressive Web App Service Worker (v3)
+const CACHE_NAME = 'paharpur-erp-v3-20260909';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/manifest.webmanifest',
   '/icon.svg',
   '/favicon.png',
   '/pwa-192x192.png',
@@ -13,6 +14,7 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
+  // Precache core assets and activate immediately without waiting for tabs to close
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
@@ -22,30 +24,81 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
+  // Purge ALL outdated caches from previous versions immediately
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+        keys.map((key) => {
+          if (key !== CACHE_NAME) {
+            console.log('[PWA SW] Deleting stale cache:', key);
+            return caches.delete(key);
+          }
+        })
       );
+    }).then(() => {
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data) {
+    if (event.data.type === 'SKIP_WAITING') {
+      self.skipWaiting();
+    } else if (event.data.type === 'PURGE_ALL_CACHES') {
+      caches.keys().then((keys) => {
+        return Promise.all(keys.map((k) => caches.delete(k)));
+      });
+    }
+  }
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass through non-GET and API / Firestore requests directly to network
+  const url = new URL(event.request.url);
+
+  // Pass through non-GET, API, Firestore, Google Auth, SW scripts, and Vite dev modules directly to network
   if (
     event.request.method !== 'GET' ||
-    event.request.url.includes('/api/') ||
-    event.request.url.includes('firestore.googleapis.com') ||
-    event.request.url.includes('identitytoolkit.googleapis.com') ||
-    event.request.url.includes('google.com') ||
-    event.request.url.includes('googleapis.com')
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.includes('.vite') ||
+    url.pathname.endsWith('sw.js') ||
+    url.pathname.endsWith('registerSW.js') ||
+    url.pathname.endsWith('dev-sw.js') ||
+    url.pathname.endsWith('manifest.json') ||
+    url.pathname.endsWith('manifest.webmanifest') ||
+    url.hostname.includes('firestore.googleapis.com') ||
+    url.hostname.includes('identitytoolkit.googleapis.com') ||
+    url.hostname.includes('google.com') ||
+    url.hostname.includes('googleapis.com')
   ) {
     return;
   }
 
-  // Network-first strategy with cache fallback for static app assets
+  // Navigation requests (HTML pages ONLY): Strict Network-First so mobile apps get latest code immediately
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return response;
+        })
+        .catch(() => {
+          // Offline fallback
+          return caches.match('/index.html').then((cached) => {
+            return cached || new Response('Offline', { status: 503, statusText: 'Offline' });
+          });
+        })
+    );
+    return;
+  }
+
+  // Static Assets: Network-first with cache fallback
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -62,10 +115,7 @@ self.addEventListener('fetch', (event) => {
           if (cachedResponse) {
             return cachedResponse;
           }
-          if (event.request.headers.get('accept')?.includes('text/html')) {
-            return caches.match('/index.html');
-          }
-          return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+          return new Response('Asset Unavailable Offline', { status: 404, statusText: 'Not Found' });
         });
       })
   );

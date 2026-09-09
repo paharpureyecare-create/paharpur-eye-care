@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ClinicalExamination, EyePower } from '../../types';
 import {
   DISTANCE_VA_OPTIONS,
@@ -9,7 +9,8 @@ import {
 } from '../../data/clinicalMasterData';
 import { ClinicalSectionId } from '../../types/clinicalSections';
 import { ClinicalSectionCard } from './ClinicalSectionCard';
-import { Eye, Check, ArrowRight, Glasses, Activity, Zap, Copy, Search } from 'lucide-react';
+import { Eye, Check, ArrowRight, Glasses, Activity, Zap, Copy, Search, Plus, Minus, Layers, CheckCircle2 } from 'lucide-react';
+import { FindMatchingLensesModal } from '../FindMatchingLensesModal';
 
 interface Props {
   examination: ClinicalExamination;
@@ -32,6 +33,28 @@ export const VisualAcuityRefractionSection: React.FC<Props> = ({
   onPowerChange,
   showToast
 }) => {
+  const [showFindLensesModal, setShowFindLensesModal] = useState(false);
+  const [activeChipCategory, setActiveChipCategory] = useState<'sph' | 'cyl' | 'axis' | 'add'>('sph');
+
+  const stepPower = (eye: 'od' | 'os', field: 'sph' | 'cyl' | 'add', delta: number) => {
+    const currentVal = (eye === 'od' ? odPower[field] : osPower[field]) || '';
+    let num = parseFloat(currentVal.replace('+', '').trim());
+    if (isNaN(num)) num = 0;
+    const nextVal = Math.round((num + delta) * 100) / 100;
+    const formatted = nextVal > 0 ? `+${nextVal.toFixed(2)}` : nextVal < 0 ? nextVal.toFixed(2) : '0.00';
+    onPowerChange(eye, field, formatted);
+  };
+
+  const handleCopyOdToOs = () => {
+    onPowerChange('os', 'sph', odPower.sph || '');
+    onPowerChange('os', 'cyl', odPower.cyl || '');
+    onPowerChange('os', 'axis', odPower.axis || '');
+    onPowerChange('os', 'add', odPower.add || '');
+    if (odPower.distanceVa) onPowerChange('os', 'distanceVa', odPower.distanceVa);
+    if (odPower.nearVa) onPowerChange('os', 'nearVa', odPower.nearVa);
+    showToast('Copied OD (Right Eye) prescription values to OS (Left Eye)', 'success');
+  };
+
   const distVa = examination?.distanceVa || {
     od: { unaided: '6/18', withCorrection: '6/6', pinhole: '6/6' },
     os: { unaided: '6/18', withCorrection: '6/6', pinhole: '6/6' },
@@ -827,179 +850,543 @@ export const VisualAcuityRefractionSection: React.FC<Props> = ({
           </div>
 
           {/* FINAL EYE POWER PRESCRIPTION (OD & OS) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
-            
-            {/* OD Final Power Box */}
-            <div className="bg-blue-50/60 rounded-2xl p-4 sm:p-5 border-2 border-blue-300 shadow-xs">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-blue-600"></span>
-                  <span className="text-xs sm:text-sm font-black text-blue-950 uppercase tracking-wider">
-                    OD — Right Eye Final Power (ডান চোখ)
-                  </span>
-                </div>
-                <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-blue-200 text-blue-950 border border-blue-300">
-                  OD FINAL
+          <div className="space-y-4 pt-2">
+
+            {/* Quick Action Toolbar: Copy OD->OS & Find Matching Lenses */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 rounded-2xl bg-slate-900 text-white shadow-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse"></span>
+                <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider">
+                  Prescription Power Station (চশমার পাওয়ার ইনপুট)
                 </span>
               </div>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 sm:gap-3">
-                <div className="flex flex-col">
-                  <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Sph (D)</label>
-                  <input
-                    type="text"
-                    value={odPower.sph || ''}
-                    onChange={e => onPowerChange('od', 'sph', e.target.value)}
-                    placeholder="—"
-                    className="w-full min-h-[46px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
-                  />
-                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. -0.50</span>
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Cyl (D)</label>
-                  <input
-                    type="text"
-                    value={odPower.cyl || ''}
-                    onChange={e => onPowerChange('od', 'cyl', e.target.value)}
-                    placeholder="—"
-                    className="w-full min-h-[46px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-blue-950 shadow-xs transition-all"
-                  />
-                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. -0.25</span>
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Axis</label>
-                  <input
-                    type="text"
-                    value={odPower.axis || ''}
-                    onChange={e => onPowerChange('od', 'axis', e.target.value)}
-                    placeholder="—"
-                    className="w-full min-h-[46px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
-                  />
-                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. 180°</span>
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Add</label>
-                  <input
-                    type="text"
-                    value={odPower.add || ''}
-                    onChange={e => onPowerChange('od', 'add', e.target.value)}
-                    placeholder="—"
-                    className="w-full min-h-[46px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-emerald-800 shadow-xs transition-all"
-                  />
-                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. +1.75</span>
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Dist VA</label>
-                  <input
-                    type="text"
-                    value={odPower.distanceVa || ''}
-                    onChange={e => onPowerChange('od', 'distanceVa', e.target.value)}
-                    placeholder="6/6"
-                    className="w-full min-h-[46px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
-                  />
-                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Snellen</span>
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Near VA</label>
-                  <input
-                    type="text"
-                    value={odPower.nearVa || ''}
-                    onChange={e => onPowerChange('od', 'nearVa', e.target.value)}
-                    placeholder="N6"
-                    className="w-full min-h-[46px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
-                  />
-                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Jaeger</span>
-                </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  id="copy-od-to-os-btn"
+                  onClick={handleCopyOdToOs}
+                  className="px-3 py-1.5 rounded-xl bg-blue-600/80 hover:bg-blue-600 text-white border border-blue-400/40 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 shadow-2xs"
+                  title="Duplicate OD power values into OS (ডান চোখ থেকে বামে কপি)"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy OD → OS</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="find-matching-lenses-btn"
+                  onClick={() => setShowFindLensesModal(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-black flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+                  title="Search Central LensMaster Inventory for OD & OS"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>🔍 Find Matching Lenses</span>
+                </button>
               </div>
             </div>
 
-            {/* OS Final Power Box */}
-            <div className="bg-emerald-50/60 rounded-2xl p-4 sm:p-5 border-2 border-emerald-300 shadow-xs">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-emerald-600"></span>
-                  <span className="text-xs sm:text-sm font-black text-emerald-950 uppercase tracking-wider">
-                    OS — Left Eye Final Power (বাম চোখ)
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              
+              {/* OD Final Power Box */}
+              <div className="bg-blue-50/60 rounded-2xl p-4 sm:p-5 border-2 border-blue-300 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-blue-600"></span>
+                    <span className="text-xs sm:text-sm font-black text-blue-950 uppercase tracking-wider">
+                      OD — Right Eye Power (ডান চোখ)
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-blue-200 text-blue-950 border border-blue-300">
+                    OD FINAL
                   </span>
                 </div>
-                <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-200 text-emerald-950 border border-emerald-300">
-                  OS FINAL
-                </span>
-              </div>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 sm:gap-3">
-                <div className="flex flex-col">
-                  <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Sph (D)</label>
-                  <input
-                    type="text"
-                    value={osPower.sph || ''}
-                    onChange={e => onPowerChange('os', 'sph', e.target.value)}
-                    placeholder="—"
-                    className="w-full min-h-[46px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
-                  />
-                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. -0.50</span>
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Cyl (D)</label>
-                  <input
-                    type="text"
-                    value={osPower.cyl || ''}
-                    onChange={e => onPowerChange('os', 'cyl', e.target.value)}
-                    placeholder="—"
-                    className="w-full min-h-[46px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-emerald-950 shadow-xs transition-all"
-                  />
-                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. -0.25</span>
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Axis</label>
-                  <input
-                    type="text"
-                    value={osPower.axis || ''}
-                    onChange={e => onPowerChange('os', 'axis', e.target.value)}
-                    placeholder="—"
-                    className="w-full min-h-[46px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
-                  />
-                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. 180°</span>
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Add</label>
-                  <input
-                    type="text"
-                    value={osPower.add || ''}
-                    onChange={e => onPowerChange('os', 'add', e.target.value)}
-                    placeholder="—"
-                    className="w-full min-h-[46px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-emerald-800 shadow-xs transition-all"
-                  />
-                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">e.g. +1.75</span>
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Dist VA</label>
-                  <input
-                    type="text"
-                    value={osPower.distanceVa || ''}
-                    onChange={e => onPowerChange('os', 'distanceVa', e.target.value)}
-                    placeholder="6/6"
-                    className="w-full min-h-[46px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
-                  />
-                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Snellen</span>
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Near VA</label>
-                  <input
-                    type="text"
-                    value={osPower.nearVa || ''}
-                    onChange={e => onPowerChange('os', 'nearVa', e.target.value)}
-                    placeholder="N6"
-                    className="w-full min-h-[46px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-2 text-center text-slate-900 shadow-xs transition-all"
-                  />
-                  <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Jaeger</span>
-                </div>
-              </div>
-            </div>
+                
+                {/* OD Power Inputs with Steppers */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 sm:gap-3">
+                  {/* SPH */}
+                  <div className="flex flex-col">
+                    <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Sph (D)</label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => stepPower('od', 'sph', -0.25)}
+                        className="w-7 h-10 rounded-lg bg-blue-200 hover:bg-blue-300 active:scale-95 text-blue-950 font-black flex items-center justify-center text-sm shadow-2xs"
+                        title="Decrease -0.25 D"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="text"
+                        value={odPower.sph || ''}
+                        onChange={e => onPowerChange('od', 'sph', e.target.value)}
+                        placeholder="0.00"
+                        className="w-full min-w-[62px] min-h-[42px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-1.5 py-1.5 text-center text-slate-900 shadow-xs transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => stepPower('od', 'sph', +0.25)}
+                        className="w-7 h-10 rounded-lg bg-blue-200 hover:bg-blue-300 active:scale-95 text-blue-950 font-black flex items-center justify-center text-sm shadow-2xs"
+                        title="Increase +0.25 D"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">±0.25 step</span>
+                  </div>
 
+                  {/* CYL */}
+                  <div className="flex flex-col">
+                    <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Cyl (D)</label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => stepPower('od', 'cyl', -0.25)}
+                        className="w-7 h-10 rounded-lg bg-blue-200 hover:bg-blue-300 active:scale-95 text-blue-950 font-black flex items-center justify-center text-sm shadow-2xs"
+                        title="Decrease -0.25 D"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="text"
+                        value={odPower.cyl || ''}
+                        onChange={e => onPowerChange('od', 'cyl', e.target.value)}
+                        placeholder="0.00"
+                        className="w-full min-w-[62px] min-h-[42px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-1.5 py-1.5 text-center text-blue-950 shadow-xs transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => stepPower('od', 'cyl', +0.25)}
+                        className="w-7 h-10 rounded-lg bg-blue-200 hover:bg-blue-300 active:scale-95 text-blue-950 font-black flex items-center justify-center text-sm shadow-2xs"
+                        title="Increase +0.25 D"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">±0.25 step</span>
+                  </div>
+
+                  {/* AXIS */}
+                  <div className="flex flex-col">
+                    <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Axis</label>
+                    <input
+                      type="text"
+                      value={odPower.axis || ''}
+                      onChange={e => onPowerChange('od', 'axis', e.target.value)}
+                      placeholder="000°"
+                      className="w-full min-h-[42px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-1.5 text-center text-slate-900 shadow-xs transition-all"
+                    />
+                    <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">0° - 180°</span>
+                  </div>
+
+                  {/* ADD */}
+                  <div className="flex flex-col">
+                    <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Add</label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => stepPower('od', 'add', -0.25)}
+                        className="w-7 h-10 rounded-lg bg-blue-200 hover:bg-blue-300 active:scale-95 text-blue-950 font-black flex items-center justify-center text-sm shadow-2xs"
+                        title="Decrease -0.25 D"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="text"
+                        value={odPower.add || ''}
+                        onChange={e => onPowerChange('od', 'add', e.target.value)}
+                        placeholder="+0.00"
+                        className="w-full min-w-[62px] min-h-[42px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-1.5 py-1.5 text-center text-emerald-800 shadow-xs transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => stepPower('od', 'add', +0.25)}
+                        className="w-7 h-10 rounded-lg bg-blue-200 hover:bg-blue-300 active:scale-95 text-blue-950 font-black flex items-center justify-center text-sm shadow-2xs"
+                        title="Increase +0.25 D"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Near Reading</span>
+                  </div>
+
+                  {/* DIST VA */}
+                  <div className="flex flex-col">
+                    <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Dist VA</label>
+                    <input
+                      type="text"
+                      value={odPower.distanceVa || ''}
+                      onChange={e => onPowerChange('od', 'distanceVa', e.target.value)}
+                      placeholder="6/6"
+                      className="w-full min-h-[42px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-1.5 text-center text-slate-900 shadow-xs transition-all"
+                    />
+                    <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Snellen</span>
+                  </div>
+
+                  {/* NEAR VA */}
+                  <div className="flex flex-col">
+                    <label className="text-xs font-black text-blue-950 uppercase tracking-wider mb-1">Near VA</label>
+                    <input
+                      type="text"
+                      value={odPower.nearVa || ''}
+                      onChange={e => onPowerChange('od', 'nearVa', e.target.value)}
+                      placeholder="N6"
+                      className="w-full min-h-[42px] bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 font-black text-sm sm:text-base rounded-xl px-2 py-1.5 text-center text-slate-900 shadow-xs transition-all"
+                    />
+                    <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Jaeger</span>
+                  </div>
+                </div>
+
+                {/* OD Quick-Select Chips (Touch Friendly, Scrollable) */}
+                <div className="bg-white/80 p-2.5 rounded-xl border border-blue-200 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-blue-950">
+                    <span>⚡ Quick Power Select (OD)</span>
+                    <span className="text-[10px] text-slate-500 font-normal">Tap to insert value</span>
+                  </div>
+
+                  {/* SPH Quick Chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+                    <span className="text-[10px] font-black text-blue-900 uppercase shrink-0">SPH:</span>
+                    {['-2.00', '-1.50', '-1.25', '-1.00', '-0.75', '-0.50', '-0.25', '0.00', '+0.25', '+0.50', '+0.75', '+1.00', '+1.25', '+1.50', '+2.00'].map(val => (
+                      <button
+                        key={`od-sph-${val}`}
+                        type="button"
+                        onClick={() => onPowerChange('od', 'sph', val === '0.00' ? '' : val)}
+                        className={`px-2 py-1 rounded-lg text-xs font-mono font-bold shrink-0 transition ${
+                          odPower.sph === val
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-blue-100/70 hover:bg-blue-200 text-blue-900'
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* CYL Quick Chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+                    <span className="text-[10px] font-black text-blue-900 uppercase shrink-0">CYL:</span>
+                    {['-2.00', '-1.75', '-1.50', '-1.25', '-1.00', '-0.75', '-0.50', '-0.25', '0.00', '+0.25', '+0.50', '+0.75', '+1.00', '+1.25', '+1.50', '+2.00'].map(val => (
+                      <button
+                        key={`od-cyl-${val}`}
+                        type="button"
+                        onClick={() => onPowerChange('od', 'cyl', val === '0.00' ? '' : val)}
+                        className={`px-2 py-1 rounded-lg text-xs font-mono font-bold shrink-0 transition ${
+                          odPower.cyl === val
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-blue-100/70 hover:bg-blue-200 text-blue-900'
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* AXIS Quick Chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+                    <span className="text-[10px] font-black text-blue-900 uppercase shrink-0">AXIS:</span>
+                    {['0°', '15°', '30°', '45°', '60°', '75°', '90°', '105°', '120°', '135°', '150°', '165°', '180°'].map(val => {
+                      const cleanVal = val.replace('°', '');
+                      return (
+                        <button
+                          key={`od-axis-${val}`}
+                          type="button"
+                          onClick={() => onPowerChange('od', 'axis', cleanVal)}
+                          className={`px-2 py-1 rounded-lg text-xs font-mono font-bold shrink-0 transition ${
+                            odPower.axis === cleanVal
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'bg-blue-100/70 hover:bg-blue-200 text-blue-900'
+                          }`}
+                        >
+                          {val}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* ADD Quick Chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+                    <span className="text-[10px] font-black text-blue-900 uppercase shrink-0">ADD:</span>
+                    {['+0.75', '+1.00', '+1.25', '+1.50', '+1.75', '+2.00', '+2.25', '+2.50', '+2.75', '+3.00'].map(val => (
+                      <button
+                        key={`od-add-${val}`}
+                        type="button"
+                        onClick={() => onPowerChange('od', 'add', val)}
+                        className={`px-2 py-1 rounded-lg text-xs font-mono font-bold shrink-0 transition ${
+                          odPower.add === val
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-blue-100/70 hover:bg-blue-200 text-blue-900'
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* OS Final Power Box */}
+              <div className="bg-emerald-50/60 rounded-2xl p-4 sm:p-5 border-2 border-emerald-300 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-emerald-600"></span>
+                    <span className="text-xs sm:text-sm font-black text-emerald-950 uppercase tracking-wider">
+                      OS — Left Eye Power (বাম চোখ)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyOdToOs}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-200 hover:bg-emerald-300 text-emerald-950 border border-emerald-300 flex items-center gap-1 transition"
+                      title="Copy from OD"
+                    >
+                      <Copy className="w-3 h-3" />
+                      Copy OD
+                    </button>
+                    <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-200 text-emerald-950 border border-emerald-300">
+                      OS FINAL
+                    </span>
+                  </div>
+                </div>
+                
+                {/* OS Power Inputs with Steppers */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 sm:gap-3">
+                  {/* SPH */}
+                  <div className="flex flex-col">
+                    <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Sph (D)</label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => stepPower('os', 'sph', -0.25)}
+                        className="w-7 h-10 rounded-lg bg-emerald-200 hover:bg-emerald-300 active:scale-95 text-emerald-950 font-black flex items-center justify-center text-sm shadow-2xs"
+                        title="Decrease -0.25 D"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="text"
+                        value={osPower.sph || ''}
+                        onChange={e => onPowerChange('os', 'sph', e.target.value)}
+                        placeholder="0.00"
+                        className="w-full min-w-[62px] min-h-[42px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-1.5 py-1.5 text-center text-slate-900 shadow-xs transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => stepPower('os', 'sph', +0.25)}
+                        className="w-7 h-10 rounded-lg bg-emerald-200 hover:bg-emerald-300 active:scale-95 text-emerald-950 font-black flex items-center justify-center text-sm shadow-2xs"
+                        title="Increase +0.25 D"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">±0.25 step</span>
+                  </div>
+
+                  {/* CYL */}
+                  <div className="flex flex-col">
+                    <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Cyl (D)</label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => stepPower('os', 'cyl', -0.25)}
+                        className="w-7 h-10 rounded-lg bg-emerald-200 hover:bg-emerald-300 active:scale-95 text-emerald-950 font-black flex items-center justify-center text-sm shadow-2xs"
+                        title="Decrease -0.25 D"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="text"
+                        value={osPower.cyl || ''}
+                        onChange={e => onPowerChange('os', 'cyl', e.target.value)}
+                        placeholder="0.00"
+                        className="w-full min-w-[62px] min-h-[42px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-1.5 py-1.5 text-center text-emerald-950 shadow-xs transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => stepPower('os', 'cyl', +0.25)}
+                        className="w-7 h-10 rounded-lg bg-emerald-200 hover:bg-emerald-300 active:scale-95 text-emerald-950 font-black flex items-center justify-center text-sm shadow-2xs"
+                        title="Increase +0.25 D"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">±0.25 step</span>
+                  </div>
+
+                  {/* AXIS */}
+                  <div className="flex flex-col">
+                    <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Axis</label>
+                    <input
+                      type="text"
+                      value={osPower.axis || ''}
+                      onChange={e => onPowerChange('os', 'axis', e.target.value)}
+                      placeholder="000°"
+                      className="w-full min-h-[42px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-1.5 text-center text-slate-900 shadow-xs transition-all"
+                    />
+                    <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">0° - 180°</span>
+                  </div>
+
+                  {/* ADD */}
+                  <div className="flex flex-col">
+                    <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Add</label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => stepPower('os', 'add', -0.25)}
+                        className="w-7 h-10 rounded-lg bg-emerald-200 hover:bg-emerald-300 active:scale-95 text-emerald-950 font-black flex items-center justify-center text-sm shadow-2xs"
+                        title="Decrease -0.25 D"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="text"
+                        value={osPower.add || ''}
+                        onChange={e => onPowerChange('os', 'add', e.target.value)}
+                        placeholder="+0.00"
+                        className="w-full min-w-[62px] min-h-[42px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-1.5 py-1.5 text-center text-emerald-800 shadow-xs transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => stepPower('os', 'add', +0.25)}
+                        className="w-7 h-10 rounded-lg bg-emerald-200 hover:bg-emerald-300 active:scale-95 text-emerald-950 font-black flex items-center justify-center text-sm shadow-2xs"
+                        title="Increase +0.25 D"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Near Reading</span>
+                  </div>
+
+                  {/* DIST VA */}
+                  <div className="flex flex-col">
+                    <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Dist VA</label>
+                    <input
+                      type="text"
+                      value={osPower.distanceVa || ''}
+                      onChange={e => onPowerChange('os', 'distanceVa', e.target.value)}
+                      placeholder="6/6"
+                      className="w-full min-h-[42px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-1.5 text-center text-slate-900 shadow-xs transition-all"
+                    />
+                    <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Snellen</span>
+                  </div>
+
+                  {/* NEAR VA */}
+                  <div className="flex flex-col">
+                    <label className="text-xs font-black text-emerald-950 uppercase tracking-wider mb-1">Near VA</label>
+                    <input
+                      type="text"
+                      value={osPower.nearVa || ''}
+                      onChange={e => onPowerChange('os', 'nearVa', e.target.value)}
+                      placeholder="N6"
+                      className="w-full min-h-[42px] bg-white border-2 border-emerald-200 hover:border-emerald-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 font-black text-sm sm:text-base rounded-xl px-2 py-1.5 text-center text-slate-900 shadow-xs transition-all"
+                    />
+                    <span className="text-[10px] text-slate-400 text-center mt-1 font-medium">Jaeger</span>
+                  </div>
+                </div>
+
+                {/* OS Quick-Select Chips (Touch Friendly, Scrollable) */}
+                <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-200 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-emerald-950">
+                    <span>⚡ Quick Power Select (OS)</span>
+                    <span className="text-[10px] text-slate-500 font-normal">Tap to insert value</span>
+                  </div>
+
+                  {/* SPH Quick Chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+                    <span className="text-[10px] font-black text-emerald-900 uppercase shrink-0">SPH:</span>
+                    {['-2.00', '-1.50', '-1.25', '-1.00', '-0.75', '-0.50', '-0.25', '0.00', '+0.25', '+0.50', '+0.75', '+1.00', '+1.25', '+1.50', '+2.00'].map(val => (
+                      <button
+                        key={`os-sph-${val}`}
+                        type="button"
+                        onClick={() => onPowerChange('os', 'sph', val === '0.00' ? '' : val)}
+                        className={`px-2 py-1 rounded-lg text-xs font-mono font-bold shrink-0 transition ${
+                          osPower.sph === val
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-emerald-100/70 hover:bg-emerald-200 text-emerald-900'
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* CYL Quick Chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+                    <span className="text-[10px] font-black text-emerald-900 uppercase shrink-0">CYL:</span>
+                    {['-2.00', '-1.75', '-1.50', '-1.25', '-1.00', '-0.75', '-0.50', '-0.25', '0.00', '+0.25', '+0.50', '+0.75', '+1.00', '+1.25', '+1.50', '+1.75', '+2.00'].map(val => (
+                      <button
+                        key={`os-cyl-${val}`}
+                        type="button"
+                        onClick={() => onPowerChange('os', 'cyl', val === '0.00' ? '' : val)}
+                        className={`px-2 py-1 rounded-lg text-xs font-mono font-bold shrink-0 transition ${
+                          osPower.cyl === val
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-emerald-100/70 hover:bg-emerald-200 text-emerald-900'
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* AXIS Quick Chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+                    <span className="text-[10px] font-black text-emerald-900 uppercase shrink-0">AXIS:</span>
+                    {['0°', '15°', '30°', '45°', '60°', '75°', '90°', '105°', '120°', '135°', '150°', '165°', '180°'].map(val => {
+                      const cleanVal = val.replace('°', '');
+                      return (
+                        <button
+                          key={`os-axis-${val}`}
+                          type="button"
+                          onClick={() => onPowerChange('os', 'axis', cleanVal)}
+                          className={`px-2 py-1 rounded-lg text-xs font-mono font-bold shrink-0 transition ${
+                            osPower.axis === cleanVal
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-emerald-100/70 hover:bg-emerald-200 text-emerald-900'
+                          }`}
+                        >
+                          {val}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* ADD Quick Chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+                    <span className="text-[10px] font-black text-emerald-900 uppercase shrink-0">ADD:</span>
+                    {['+0.75', '+1.00', '+1.25', '+1.50', '+1.75', '+2.00', '+2.25', '+2.50', '+2.75', '+3.00'].map(val => (
+                      <button
+                        key={`os-add-${val}`}
+                        type="button"
+                        onClick={() => onPowerChange('os', 'add', val)}
+                        className={`px-2 py-1 rounded-lg text-xs font-mono font-bold shrink-0 transition ${
+                          osPower.add === val
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-emerald-100/70 hover:bg-emerald-200 text-emerald-900'
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
           </div>
         </div>
       </ClinicalSectionCard>
+
+      {/* Find Matching Lenses Modal */}
+      <FindMatchingLensesModal
+        isOpen={showFindLensesModal}
+        onClose={() => setShowFindLensesModal(false)}
+        odPower={odPower}
+        osPower={osPower}
+      />
 
     </div>
   );

@@ -23,6 +23,7 @@ import {
   setDoc,
   getDoc,
   getDocs,
+  getDocFromServer,
   deleteDoc,
   onSnapshot,
   onSnapshotsInSync,
@@ -46,34 +47,109 @@ export const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig
 // 2. Initialize Auth
 export const auth = getAuth(app);
 
-// 3. Initialize Firestore with specified firestoreDatabaseId and multi-tab offline persistence
+// 3. Initialize Firestore with specified firestoreDatabaseId, auto-detect long polling and multi-tab persistence
 let dbInstance: Firestore;
+const dbId = (firebaseConfig as any).firestoreDatabaseId;
+
 try {
-  const dbId = (firebaseConfig as any).firestoreDatabaseId;
-  if (dbId) {
-    dbInstance = initializeFirestore(
-      app,
-      {
-        localCache: persistentLocalCache({
-          tabManager: persistentMultipleTabManager()
-        })
-      },
-      dbId
-    );
-  } else {
-    dbInstance = initializeFirestore(app, {
+  dbInstance = initializeFirestore(
+    app,
+    {
+      experimentalAutoDetectLongPolling: true,
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager()
       })
-    });
-  }
+    },
+    dbId || undefined
+  );
 } catch (err: any) {
-  // If already initialized, fetch the existing instance
-  const dbId = (firebaseConfig as any).firestoreDatabaseId;
-  dbInstance = dbId ? getFirestore(app, dbId) : getFirestore(app);
+  try {
+    dbInstance = initializeFirestore(
+      app,
+      {
+        experimentalAutoDetectLongPolling: true
+      },
+      dbId || undefined
+    );
+  } catch (err2) {
+    dbInstance = dbId ? getFirestore(app, dbId) : getFirestore(app);
+  }
 }
 
 export const db: Firestore = dbInstance;
+
+// ==========================================
+// ERROR HANDLING & CONNECTION VALIDATION
+// ==========================================
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+  const errMessage = error instanceof Error ? error.message : String(error);
+  const errInfo: FirestoreErrorInfo = {
+    error: errMessage,
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+export async function testConnection(): Promise<boolean> {
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Connection check timeout')), 2500)
+    );
+    await Promise.race([
+      getDocFromServer(doc(db, 'test', 'connection')),
+      timeoutPromise
+    ]);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn("Firestore connection check: operating in offline mode.");
+    }
+    return false;
+  }
+}
+
+// NOTE: testConnection is strictly on-demand and must NEVER be invoked at root module scope
+// to ensure it does not block application startup or render cycles.
 
 export type CloudSyncStatus = 'online' | 'offline' | 'syncing' | 'synced' | 'error';
 export type FirestoreConnectionState = 'connected' | 'disconnected' | 'sync-pending';

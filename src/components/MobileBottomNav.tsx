@@ -44,7 +44,7 @@ export const MobileBottomNav: React.FC = () => {
     if (tab === 'patients') return activeTab === 'patients' || activeTab === 'customers';
     if (tab === 'appointments') return activeTab === 'appointments';
     if (tab === 'retail-sales') return activeTab === 'retail-sales' || activeTab === 'spectacles' || activeTab === 'wholesale';
-    if (tab === 'frame-inventory') return activeTab === 'frame-inventory' || activeTab === 'lens-inventory' || activeTab === 'stock-ledger' || activeTab === 'suppliers';
+    if (tab === 'lens-inventory') return activeTab === 'lens-inventory' || activeTab === 'frame-inventory' || activeTab === 'stock-ledger' || activeTab === 'suppliers';
     return false;
   };
 
@@ -53,7 +53,7 @@ export const MobileBottomNav: React.FC = () => {
     !isTabActive('patients') &&
     !isTabActive('appointments') &&
     !isTabActive('retail-sales') &&
-    !isTabActive('frame-inventory');
+    !isTabActive('lens-inventory');
 
   return (
     <>
@@ -138,17 +138,17 @@ export const MobileBottomNav: React.FC = () => {
             <span className="text-[10px] tracking-tight mt-0.5 leading-none">Sales</span>
           </button>
 
-          {/* 5. Inventory */}
+          {/* 5. Stock (Lens Stock Priority) */}
           <button
             id="mob-nav-inventory"
-            onClick={() => handleTabClick('frame-inventory')}
+            onClick={() => handleTabClick('lens-inventory')}
             className={`relative flex flex-col items-center justify-center min-h-[48px] py-1 rounded-xl transition-all active:scale-95 ${
-              isTabActive('frame-inventory')
+              isTabActive('lens-inventory')
                 ? 'text-teal-600 font-bold'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            <div className={`relative p-1 rounded-lg ${isTabActive('frame-inventory') ? 'bg-teal-50' : ''}`}>
+            <div className={`relative p-1 rounded-lg ${isTabActive('lens-inventory') ? 'bg-teal-50' : ''}`}>
               <Boxes className="w-5 h-5" />
               {lowStockCount > 0 && (
                 <span className="absolute -top-0.5 -right-1 bg-rose-500 text-white text-[9px] font-bold px-1 rounded-full min-w-[14px] text-center shadow-xs">

@@ -10,6 +10,17 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function getAuthEmail() {
+      return isAuthenticated() && 'email' in request.auth.token ? request.auth.token.email : '';
+    }
+
+    function isAnonymousAuth() {
+      return isAuthenticated() &&
+             'firebase' in request.auth.token &&
+             'sign_in_provider' in request.auth.token.firebase &&
+             request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
     function getUserDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
@@ -17,17 +28,18 @@ service cloud.firestore {
     function isAccountActive() {
       return isAuthenticated() && (
         !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        !('status' in getUserDoc()) ||
         getUserDoc().status != 'Disabled'
       );
     }
 
     function getUserRole() {
       return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? getUserDoc().role
+        ? ('role' in getUserDoc() ? getUserDoc().role : 'STAFF')
         : (
-            request.auth.token.email == 'paharpureyecare@gmail.com' ||
-            request.auth.token.email == 'admin@paharpureyecare.com' ||
-            request.auth.token.firebase.sign_in_provider == 'anonymous' ||
+            getAuthEmail() == 'paharpureyecare@gmail.com' ||
+            getAuthEmail() == 'admin@paharpureyecare.com' ||
+            isAnonymousAuth() ||
             !exists(/databases/$(database)/documents/clinic_settings/main)
             ? 'ADMIN' : 'STAFF'
           );
@@ -41,9 +53,9 @@ service cloud.firestore {
         getUserRole() == 'Owner' ||
         getUserRole() == 'Owner/Admin' ||
         getUserRole() == 'ERP Master' ||
-        request.auth.token.email == 'paharpureyecare@gmail.com' ||
-        request.auth.token.email == 'admin@paharpureyecare.com' ||
-        request.auth.token.firebase.sign_in_provider == 'anonymous' ||
+        getAuthEmail() == 'paharpureyecare@gmail.com' ||
+        getAuthEmail() == 'admin@paharpureyecare.com' ||
+        isAnonymousAuth() ||
         !exists(/databases/$(database)/documents/clinic_settings/main)
       );
     }
@@ -382,6 +394,80 @@ service cloud.firestore {
       allow read: if canAccess('Inventory', 'view', true);
       allow create, update: if canAccess('Inventory', 'edit', (isStaff() || isSales() || isAccountant()));
       allow delete: if canAccess('Inventory', 'delete', false);
+    }
+
+    // ===============================================================
+    // 7.1 EXPENSES, BANKING & DAY CLOSING
+    // ===============================================================
+    match /expenses/{docId} {
+      allow read: if canAccess('Expenses', 'view', (isAccountant() || isReception() || isStaff()));
+      allow create, update: if canAccess('Expenses', 'edit', (isAccountant() || isReception() || isStaff()));
+      allow delete: if canAccess('Expenses', 'delete', false);
+    }
+
+    match /bank_transactions/{docId} {
+      allow read: if canAccess('Bank Transactions', 'view', (isAccountant() || isStaff()));
+      allow create, update: if canAccess('Bank Transactions', 'edit', (isAccountant() || isStaff()));
+      allow delete: if canAccess('Bank Transactions', 'delete', false);
+    }
+
+    match /day_closes/{docId} {
+      allow read: if canAccess('Day Close', 'view', (isAccountant() || isReception() || isStaff()));
+      allow create, update: if canAccess('Day Close', 'edit', (isAccountant() || isReception() || isStaff()));
+      allow delete: if canAccess('Day Close', 'delete', false);
+    }
+
+    // ===============================================================
+    // 7.2 LAB, FITTERS & GOODS DISPATCH
+    // ===============================================================
+    match /fitters/{docId} {
+      allow read: if canAccess('Fitters', 'view', true);
+      allow create, update: if canAccess('Fitters', 'edit', (isStaff() || isSales() || isAccountant()));
+      allow delete: if canAccess('Fitters', 'delete', false);
+    }
+
+    match /fitter_ledgers/{docId} {
+      allow read: if canAccess('Fitters', 'view', true);
+      allow create, update: if canAccess('Fitters', 'edit', (isStaff() || isSales() || isAccountant()));
+      allow delete: if canAccess('Fitters', 'delete', false);
+    }
+
+    match /lab_dispatches/{docId} {
+      allow read: if canAccess('Spectacle Orders', 'view', true);
+      allow create, update: if canAccess('Spectacle Orders', 'edit', (isStaff() || isSales() || isReception()));
+      allow delete: if canAccess('Spectacle Orders', 'delete', false);
+    }
+
+    match /goods_received_notes/{docId} {
+      allow read: if canAccess('Purchases', 'view', true);
+      allow create, update: if canAccess('Purchases', 'edit', (isStaff() || isAccountant() || isSales()));
+      allow delete: if canAccess('Purchases', 'delete', false);
+    }
+
+    // ===============================================================
+    // 7.3 HR, STAFF ATTENDANCE & SALARIES
+    // ===============================================================
+    match /staff_attendances/{docId} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /staff_leaves/{docId} {
+      allow read: if isStaff();
+      allow create, update: if isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /staff_salaries/{docId} {
+      allow read: if (isAdmin() || isAccountant());
+      allow create, update: if (isAdmin() || isAccountant());
+      allow delete: if isAdmin();
+    }
+
+    // Health check / connection test collection
+    match /test/{docId} {
+      allow read: if true;
     }
 
     // ===============================================================

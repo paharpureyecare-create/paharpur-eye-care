@@ -60,7 +60,7 @@ ${systemContext ? `\nERP SYSTEM SNAPSHOT CONTEXT:\n${typeof systemContext === 's
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         systemInstruction,
@@ -133,7 +133,7 @@ Return ONLY valid JSON matching this exact JSON format:
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
+      model: 'gemini-3.8-flash',
       contents: {
         parts: [
           {
@@ -210,7 +210,7 @@ Extract all structured fields into this exact JSON schema:
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
+      model: 'gemini-3.8-flash',
       contents: promptText,
       config: {
         responseMimeType: 'application/json'
@@ -272,7 +272,7 @@ CRITICAL RULES:
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
+      model: 'gemini-3.8-flash',
       contents: `Instruction: "${instruction}"\nERP Context:\n${JSON.stringify(erpContext || {})}`,
       config: {
         systemInstruction,
@@ -332,7 +332,7 @@ Return ONLY valid JSON matching this schema:
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
+      model: 'gemini-3.8-flash',
       contents: `Topic: "${topic}", Preferred Tone: "${preferredTone || 'Professional'}", Product: "${productType || 'General'}", Discount: "${discount || ''}"`,
       config: {
         systemInstruction,
@@ -396,7 +396,7 @@ Return ONLY valid JSON:
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
+      model: 'gemini-3.8-flash',
       contents: `Data Metrics:\n${JSON.stringify({ customerMetrics, salesTrends })}`,
       config: {
         systemInstruction,
@@ -420,6 +420,38 @@ Return ONLY valid JSON:
   }
 });
 
+// Cache-Control headers to ensure PWA Service Worker, Manifest, and HTML are NEVER cached stale
+app.use((req, res, next) => {
+  const url = req.path;
+  if (
+    url === '/' ||
+    url === '/index.html' ||
+    url === '/sw.js' ||
+    url === '/registerSW.js' ||
+    url === '/dev-sw.js' ||
+    url === '/manifest.json' ||
+    url === '/manifest.webmanifest' ||
+    url.endsWith('.html') ||
+    url.endsWith('.webmanifest') ||
+    url.includes('sw.js')
+  ) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+  }
+  next();
+});
+
+// Explicit valid JavaScript handlers for service worker routes to prevent HTML falling through as JS syntax error
+app.get('/dev-sw.js', (req, res) => {
+  res.type('application/javascript').send('// Dev service worker disabled\nself.addEventListener("install", () => self.skipWaiting());\n');
+});
+
+app.get('/registerSW.js', (req, res) => {
+  res.type('application/javascript').send('// Register SW stub\n');
+});
+
 // Vite middleware setup
 async function startServer() {
   const httpServer = http.createServer(app);
@@ -437,8 +469,31 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(
+      express.static(distPath, {
+        setHeaders: (res, filePath) => {
+          if (
+            filePath.endsWith('sw.js') ||
+            filePath.endsWith('registerSW.js') ||
+            filePath.endsWith('index.html') ||
+            filePath.endsWith('.webmanifest') ||
+            filePath.endsWith('manifest.json')
+          ) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+            res.setHeader('Surrogate-Control', 'no-store');
+          } else if (filePath.includes('/assets/')) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      })
+    );
     app.get('*', (req, res) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Surrogate-Control', 'no-store');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
