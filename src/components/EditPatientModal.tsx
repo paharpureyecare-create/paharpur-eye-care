@@ -56,7 +56,7 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
   if (!isOpen || !patient) return null;
 
   const [name, setName] = useState(patient.name || '');
-  const [age, setAge] = useState<number | ''>(patient.age || 35);
+  const [age, setAge] = useState<number | ''>(patient.age !== undefined && patient.age !== null ? patient.age : '');
   const [dob, setDob] = useState(patient.dob || '');
   const [gender, setGender] = useState<Gender>(patient.gender || 'Male');
   const [mobile, setMobile] = useState(patient.mobile || '');
@@ -91,13 +91,10 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
     }
   };
 
+  // Handle Age change -> DO NOT auto-derive or populate DOB (DOB is entered manually)
   const handleAgeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value === '' ? '' : Number(e.target.value);
     setAge(val);
-    if (typeof val === 'number' && val > 0 && val <= 120 && !dob) {
-      const estimatedYear = new Date().getFullYear() - val;
-      setDob(`${estimatedYear}-01-01`);
-    }
   };
 
   const toggleSymptom = (sym: string) => {

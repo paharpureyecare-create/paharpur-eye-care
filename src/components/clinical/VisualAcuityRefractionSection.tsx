@@ -626,50 +626,50 @@ export const VisualAcuityRefractionSection: React.FC<Props> = ({
                 <td className="p-1.5"><input type="text" value={refStages.currentGlasses?.od?.sph || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, currentGlasses: { ...refStages.currentGlasses, od: { ...refStages.currentGlasses.od, sph: val } } } }));
-                }} placeholder="-1.00" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                }} placeholder="—" className="w-full min-w-[70px] min-h-[38px] bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-slate-900" /></td>
                 <td className="p-1.5"><input type="text" value={refStages.currentGlasses?.od?.cyl || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, currentGlasses: { ...refStages.currentGlasses, od: { ...refStages.currentGlasses.od, cyl: val } } } }));
-                }} placeholder="0.00" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                }} placeholder="—" className="w-full min-w-[70px] min-h-[38px] bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-indigo-900" /></td>
                 <td className="p-1.5"><input type="text" value={refStages.currentGlasses?.od?.axis || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, currentGlasses: { ...refStages.currentGlasses, od: { ...refStages.currentGlasses.od, axis: val } } } }));
-                }} placeholder="-" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                }} placeholder="—" className="w-full min-w-[60px] min-h-[38px] bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-slate-900" /></td>
                 <td className="p-1.5"><input type="text" value={refStages.currentGlasses?.od?.add || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, currentGlasses: { ...refStages.currentGlasses, od: { ...refStages.currentGlasses.od, add: val } } } }));
-                }} placeholder="+1.50" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                }} placeholder="—" className="w-full min-w-[70px] min-h-[38px] bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-emerald-800" /></td>
                 <td className="p-1.5"><input type="text" value={refStages.currentGlasses?.od?.va || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, currentGlasses: { ...refStages.currentGlasses, od: { ...refStages.currentGlasses.od, va: val } } } }));
-                }} placeholder="6/9" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                }} placeholder="6/6" className="w-full min-w-[65px] min-h-[38px] bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-bold text-center text-slate-800" /></td>
                 <td rowSpan={2} className="p-1.5"><input type="text" value={refStages.currentGlasses?.notes || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, currentGlasses: { ...refStages.currentGlasses, notes: val } } }));
-                }} placeholder="Wearing for 2 years" className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs" /></td>
+                }} placeholder="Wearing duration / comfort" className="w-full min-h-[38px] bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs" /></td>
               </tr>
               <tr className="bg-slate-50/50">
                 <td className="p-2 font-bold text-emerald-700">OS</td>
                 <td className="p-1.5"><input type="text" value={refStages.currentGlasses?.os?.sph || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, currentGlasses: { ...refStages.currentGlasses, os: { ...refStages.currentGlasses.os, sph: val } } } }));
-                }} placeholder="-1.00" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                }} placeholder="—" className="w-full min-w-[70px] min-h-[38px] bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-slate-900" /></td>
                 <td className="p-1.5"><input type="text" value={refStages.currentGlasses?.os?.cyl || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, currentGlasses: { ...refStages.currentGlasses, os: { ...refStages.currentGlasses.os, cyl: val } } } }));
-                }} placeholder="0.00" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                }} placeholder="—" className="w-full min-w-[70px] min-h-[38px] bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-indigo-900" /></td>
                 <td className="p-1.5"><input type="text" value={refStages.currentGlasses?.os?.axis || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, currentGlasses: { ...refStages.currentGlasses, os: { ...refStages.currentGlasses.os, axis: val } } } }));
-                }} placeholder="-" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                }} placeholder="—" className="w-full min-w-[60px] min-h-[38px] bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-slate-900" /></td>
                 <td className="p-1.5"><input type="text" value={refStages.currentGlasses?.os?.add || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, currentGlasses: { ...refStages.currentGlasses, os: { ...refStages.currentGlasses.os, add: val } } } }));
-                }} placeholder="+1.50" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                }} placeholder="—" className="w-full min-w-[70px] min-h-[38px] bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-emerald-800" /></td>
                 <td className="p-1.5"><input type="text" value={refStages.currentGlasses?.os?.va || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, currentGlasses: { ...refStages.currentGlasses, os: { ...refStages.currentGlasses.os, va: val } } } }));
-                }} placeholder="6/9" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                }} placeholder="6/6" className="w-full min-w-[65px] min-h-[38px] bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-bold text-center text-slate-800" /></td>
               </tr>
 
               {/* Auto-Refraction (AR) */}
@@ -681,38 +681,38 @@ export const VisualAcuityRefractionSection: React.FC<Props> = ({
                 <td className="p-1.5"><input type="text" value={refStages.autoRefraction?.od?.sph || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, autoRefraction: { ...refStages.autoRefraction, od: { ...refStages.autoRefraction.od, sph: val } } } }));
-                }} placeholder="-1.50" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs font-semibold" /></td>
+                }} placeholder="—" className="w-full min-w-[70px] min-h-[38px] bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-slate-900" /></td>
                 <td className="p-1.5"><input type="text" value={refStages.autoRefraction?.od?.cyl || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, autoRefraction: { ...refStages.autoRefraction, od: { ...refStages.autoRefraction.od, cyl: val } } } }));
-                }} placeholder="-0.50" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs font-semibold" /></td>
+                }} placeholder="—" className="w-full min-w-[70px] min-h-[38px] bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-indigo-900" /></td>
                 <td className="p-1.5"><input type="text" value={refStages.autoRefraction?.od?.axis || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, autoRefraction: { ...refStages.autoRefraction, od: { ...refStages.autoRefraction.od, axis: val } } } }));
-                }} placeholder="90°" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs font-semibold" /></td>
-                <td className="p-1.5 text-center text-slate-400">-</td>
-                <td className="p-1.5 text-center text-slate-400">-</td>
+                }} placeholder="—" className="w-full min-w-[60px] min-h-[38px] bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-slate-900" /></td>
+                <td className="p-1.5 text-center text-slate-400">—</td>
+                <td className="p-1.5 text-center text-slate-400">—</td>
                 <td rowSpan={2} className="p-1.5"><input type="text" value={refStages.autoRefraction?.notes || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, autoRefraction: { ...refStages.autoRefraction, notes: val } } }));
-                }} placeholder="Reliable reading (Vert. 12mm)" className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs" /></td>
+                }} placeholder="AR Reading (Vert. 12mm)" className="w-full min-h-[38px] bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs" /></td>
               </tr>
               <tr className="bg-blue-50/20">
                 <td className="p-2 font-bold text-emerald-700">OS</td>
                 <td className="p-1.5"><input type="text" value={refStages.autoRefraction?.os?.sph || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, autoRefraction: { ...refStages.autoRefraction, os: { ...refStages.autoRefraction.os, sph: val } } } }));
-                }} placeholder="-1.50" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs font-semibold" /></td>
+                }} placeholder="—" className="w-full min-w-[70px] min-h-[38px] bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-slate-900" /></td>
                 <td className="p-1.5"><input type="text" value={refStages.autoRefraction?.os?.cyl || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, autoRefraction: { ...refStages.autoRefraction, os: { ...refStages.autoRefraction.os, cyl: val } } } }));
-                }} placeholder="-0.50" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs font-semibold" /></td>
+                }} placeholder="—" className="w-full min-w-[70px] min-h-[38px] bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-indigo-900" /></td>
                 <td className="p-1.5"><input type="text" value={refStages.autoRefraction?.os?.axis || ''} onChange={e => {
                   const val = e.target.value;
                   onExamChange(prev => ({ ...prev, refractionStages: { ...refStages, autoRefraction: { ...refStages.autoRefraction, os: { ...refStages.autoRefraction.os, axis: val } } } }));
-                }} placeholder="90°" className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-xs font-semibold" /></td>
-                <td className="p-1.5 text-center text-slate-400">-</td>
-                <td className="p-1.5 text-center text-slate-400">-</td>
+                }} placeholder="—" className="w-full min-w-[60px] min-h-[38px] bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-black text-center text-slate-900" /></td>
+                <td className="p-1.5 text-center text-slate-400">—</td>
+                <td className="p-1.5 text-center text-slate-400">—</td>
               </tr>
 
             </tbody>

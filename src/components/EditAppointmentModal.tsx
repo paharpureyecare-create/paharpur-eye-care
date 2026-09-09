@@ -70,7 +70,9 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
 
   // Form states
   const [patientName, setPatientName] = useState(appointment.patientName || '');
-  const [age, setAge] = useState<number | ''>(appointment.age !== undefined ? appointment.age : (linkedPatient?.age || 35));
+  const [age, setAge] = useState<number | ''>(
+    appointment.age !== undefined && appointment.age !== null ? appointment.age : (linkedPatient?.age !== undefined && linkedPatient?.age !== null ? linkedPatient.age : '')
+  );
   const [dob, setDob] = useState(appointment.dob || linkedPatient?.dob || '');
   const [gender, setGender] = useState<Gender>(appointment.gender || linkedPatient?.gender || 'Male');
   const [mobile, setMobile] = useState(appointment.mobile || linkedPatient?.mobile || '');

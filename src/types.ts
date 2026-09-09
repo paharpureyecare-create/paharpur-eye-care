@@ -1781,3 +1781,172 @@ export interface GoogleDriveSpreadsheetItem {
   webViewLink?: string;
 }
 
+// ==========================================
+// ADDITIONAL REAL-TIME ERP MODULES
+// ==========================================
+
+export interface ExpenseRecord {
+  id: string;
+  date: string;
+  category: 'Rent' | 'Electricity' | 'Staff Tea/Snacks' | 'Courier/Postage' | 'Lab Charges' | 'Maintenance' | 'Marketing' | 'Supplies' | 'Other';
+  amount: number;
+  paymentMode: 'Cash' | 'UPI' | 'Bank Transfer' | 'Card' | 'Other';
+  paidTo: string;
+  notes?: string;
+  receiptUrl?: string;
+  createdBy?: string;
+  createdAt?: string;
+}
+
+export interface DayCloseRecord {
+  id: string;
+  date: string;
+  openingCash: number;
+  cashSales: number;
+  upiSales: number;
+  cardSales: number;
+  bankTransferSales: number;
+  totalCollections: number;
+  totalExpenses: number;
+  cashInDrawerCalculated: number;
+  cashInDrawerActual: number;
+  difference: number;
+  notes?: string;
+  closedBy: string;
+  closedAt: string;
+  status: 'Balanced' | 'Discrepancy' | 'Verified';
+}
+
+export interface LabDispatchRecord {
+  id: string;
+  orderId: string;
+  customerName: string;
+  labName: string;
+  dispatchDate: string;
+  expectedDate?: string;
+  status: 'Dispatched' | 'In Process' | 'Received from Lab' | 'Fitted & QC Passed' | 'Returned to Lab';
+  lensSku?: string;
+  frameSku?: string;
+  notes?: string;
+  trackingNumber?: string;
+  fitterId?: string;
+  dispatchedBy?: string;
+  receivedDate?: string;
+}
+
+export interface FitterRecord {
+  id: string;
+  name: string;
+  phone: string;
+  speciality: 'Edging & Fitting' | 'Rimless Grooving' | 'Bifocal / Progressive' | 'All Types';
+  ratePerJob: number;
+  status: 'Active' | 'Inactive';
+  address?: string;
+  currentBalance?: number;
+}
+
+export interface FitterLedgerRecord {
+  id: string;
+  fitterId: string;
+  fitterName: string;
+  date: string;
+  orderId?: string;
+  jobCount?: number;
+  description: string;
+  debit: number; // clinic paid fitter
+  credit: number; // fitter earned from job
+  balance: number;
+  paymentMode?: 'Cash' | 'UPI' | 'Bank Transfer';
+  referenceNo?: string;
+}
+
+export interface GoodsReceivedNote {
+  id: string;
+  grnNumber: string;
+  purchaseOrderId?: string;
+  supplierId: string;
+  supplierName: string;
+  date: string;
+  items: Array<{
+    itemType: 'Frame' | 'Lens' | 'Accessory' | 'Medicine';
+    sku: string;
+    description: string;
+    orderedQty: number;
+    receivedQty: number;
+    acceptedQty: number;
+    rejectedQty?: number;
+    unitPrice: number;
+    totalAmount: number;
+  }>;
+  totalAmount: number;
+  receivedBy: string;
+  invoiceNumber?: string;
+  status: 'Pending Inspection' | 'Accepted' | 'Partial' | 'Rejected';
+  notes?: string;
+}
+
+export interface StaffLeaveRecord {
+  id: string;
+  staffId: string;
+  staffName: string;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  leaveType: 'Casual Leave' | 'Sick Leave' | 'Paid Leave' | 'Unpaid';
+  status: 'Pending' | 'Approved' | 'Rejected';
+  reason: string;
+  approvedBy?: string;
+}
+
+export interface StaffSalaryRecord {
+  id: string;
+  staffId: string;
+  staffName: string;
+  month: string;
+  year: number;
+  baseSalary: number;
+  incentives: number;
+  deductions: number;
+  netPaid: number;
+  paymentDate: string;
+  paymentMode: 'Cash' | 'UPI' | 'Bank Transfer';
+  transactionRef?: string;
+  status: 'Processed' | 'Paid' | 'Hold';
+  notes?: string;
+}
+
+export interface StaffAttendanceRecord {
+  id: string;
+  staffId: string;
+  staffName: string;
+  date: string;
+  status: 'Present' | 'Absent' | 'Half Day' | 'On Leave';
+  inTime?: string;
+  outTime?: string;
+  notes?: string;
+}
+
+export interface BankTransactionRecord {
+  id: string;
+  date: string;
+  type: 'Deposit' | 'Withdrawal' | 'UPI In' | 'UPI Out' | 'Card Settlement' | 'Expense Payment' | 'Supplier Payment';
+  amount: number;
+  bankName: string;
+  accountNumber?: string;
+  referenceNumber?: string;
+  description: string;
+  balance?: number;
+  category?: string;
+}
+
+export interface LiveActivityFeedItem {
+  id: string;
+  timestamp: string;
+  type: 'appointment' | 'patient' | 'visit' | 'order' | 'sale' | 'payment' | 'inventory';
+  title: string;
+  description: string;
+  user: string;
+  amount?: number;
+}
+
+

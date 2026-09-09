@@ -103,7 +103,7 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
-  const [age, setAge] = useState<number | ''>(35);
+  const [age, setAge] = useState<number | ''>('');
   const [dob, setDob] = useState('');
   const [gender, setGender] = useState<Gender>('Male');
   
@@ -143,7 +143,7 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
       setName(prefillPatient.name);
       setMobile(prefillPatient.mobile);
       setWhatsapp(prefillPatient.whatsapp || prefillPatient.mobile);
-      setAge(prefillPatient.age || 35);
+      setAge(prefillPatient.age !== undefined && prefillPatient.age !== null ? prefillPatient.age : '');
       setDob(prefillPatient.dob || '');
       setGender(prefillPatient.gender || 'Male');
       setVillage(prefillPatient.village || '');
@@ -171,14 +171,10 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
     }
   };
 
-  // Handle Age change -> update DOB estimate
+  // Handle Age change -> DO NOT auto-derive or populate DOB (DOB is entered manually)
   const handleAgeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value === '' ? '' : Number(e.target.value);
     setAge(val);
-    if (typeof val === 'number' && val > 0 && val <= 120 && !dob) {
-      const estimatedYear = new Date().getFullYear() - val;
-      setDob(`${estimatedYear}-01-01`);
-    }
   };
 
   // Toggle symptom chip
@@ -201,7 +197,7 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
     setName(p.name);
     setMobile(p.mobile);
     setWhatsapp(p.whatsapp || p.mobile);
-    setAge(p.age || 35);
+    setAge(p.age !== undefined && p.age !== null ? p.age : '');
     setDob(p.dob || '');
     setGender(p.gender || 'Male');
     setVillage(p.village || '');
@@ -253,7 +249,7 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
       mrd: patientMode === 'existing' && selectedMrd ? selectedMrd : '',
       patientName: name.trim(),
       mobile: mobile.trim(),
-      age: typeof age === 'number' ? age : 35,
+      age: typeof age === 'number' ? age : (age ? Number(age) : 0),
       dob: dob || undefined,
       gender,
       village: village.trim(),

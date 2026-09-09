@@ -160,14 +160,14 @@ export const EditSpectacleOrderModal: React.FC<EditSpectacleOrderModalProps> = (
   const [lensRate, setLensRate] = useState<number>(order.lensRate ?? 1000);
 
   // 4. Power state
-  const [odSph, setOdSph] = useState(order.odSph || order.odPower?.sph || '+0.00');
-  const [odCyl, setOdCyl] = useState(order.odCyl || order.odPower?.cyl || '0.00');
-  const [odAxis, setOdAxis] = useState(order.odAxis || order.odPower?.axis || '180');
-  const [odAdd, setOdAdd] = useState(order.odAdd || order.odPower?.add || '—');
-  const [osSph, setOsSph] = useState(order.osSph || order.osPower?.sph || '+0.00');
-  const [osCyl, setOsCyl] = useState(order.osCyl || order.osPower?.cyl || '0.00');
-  const [osAxis, setOsAxis] = useState(order.osAxis || order.osPower?.axis || '180');
-  const [osAdd, setOsAdd] = useState(order.osAdd || order.osPower?.add || '—');
+  const [odSph, setOdSph] = useState(order.odSph || order.odPower?.sph || '');
+  const [odCyl, setOdCyl] = useState(order.odCyl || order.odPower?.cyl || '');
+  const [odAxis, setOdAxis] = useState(order.odAxis || order.odPower?.axis || '');
+  const [odAdd, setOdAdd] = useState(order.odAdd || order.odPower?.add || '');
+  const [osSph, setOsSph] = useState(order.osSph || order.osPower?.sph || '');
+  const [osCyl, setOsCyl] = useState(order.osCyl || order.osPower?.cyl || '');
+  const [osAxis, setOsAxis] = useState(order.osAxis || order.osPower?.axis || '');
+  const [osAdd, setOsAdd] = useState(order.osAdd || order.osPower?.add || '');
   const [pd, setPd] = useState(order.pd || '63mm');
   const [distanceVa, setDistanceVa] = useState(order.distanceVa || '6/6');
   const [nearVa, setNearVa] = useState(order.nearVa || 'N6');

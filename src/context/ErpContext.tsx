@@ -54,7 +54,18 @@ import {
   FailedAccessAttempt,
   ModulePermissions,
   PrescriptionRecord,
-  FirestoreConnectionState
+  FirestoreConnectionState,
+  ExpenseRecord,
+  DayCloseRecord,
+  LabDispatchRecord,
+  FitterRecord,
+  FitterLedgerRecord,
+  GoodsReceivedNote,
+  StaffLeaveRecord,
+  StaffSalaryRecord,
+  StaffAttendanceRecord,
+  BankTransactionRecord,
+  LiveActivityFeedItem
 } from '../types';
 import {
   saveCloudDocument,
@@ -490,6 +501,38 @@ interface ErpContextType {
   activeFrameTypes: string[];
   activeDiagnoses: string[];
   activePaymentMethods: string[];
+
+  // Extended Real-Time Modules
+  expenses: ExpenseRecord[];
+  saveExpense: (expense: Omit<ExpenseRecord, 'id' | 'createdAt'> & { id?: string }) => ExpenseRecord;
+  deleteExpense: (id: string) => void;
+  dayCloses: DayCloseRecord[];
+  saveDayClose: (record: Omit<DayCloseRecord, 'id' | 'closedAt'> & { id?: string }) => DayCloseRecord;
+  labDispatches: LabDispatchRecord[];
+  saveLabDispatch: (dispatch: Omit<LabDispatchRecord, 'id'> & { id?: string }) => LabDispatchRecord;
+  deleteLabDispatch: (id: string) => void;
+  fitters: FitterRecord[];
+  saveFitter: (fitter: Omit<FitterRecord, 'id'> & { id?: string }) => FitterRecord;
+  deleteFitter: (id: string) => void;
+  fitterLedgers: FitterLedgerRecord[];
+  saveFitterLedger: (entry: Omit<FitterLedgerRecord, 'id'> & { id?: string }) => FitterLedgerRecord;
+  goodsReceivedNotes: GoodsReceivedNote[];
+  saveGoodsReceivedNote: (grn: Omit<GoodsReceivedNote, 'id'> & { id?: string }) => GoodsReceivedNote;
+  staffLeaves: StaffLeaveRecord[];
+  saveStaffLeave: (leave: Omit<StaffLeaveRecord, 'id'> & { id?: string }) => StaffLeaveRecord;
+  staffSalaries: StaffSalaryRecord[];
+  saveStaffSalary: (salary: Omit<StaffSalaryRecord, 'id'> & { id?: string }) => StaffSalaryRecord;
+  staffAttendances: StaffAttendanceRecord[];
+  saveStaffAttendance: (att: Omit<StaffAttendanceRecord, 'id'> & { id?: string }) => StaffAttendanceRecord;
+  bankTransactions: BankTransactionRecord[];
+  saveBankTransaction: (tx: Omit<BankTransactionRecord, 'id'> & { id?: string }) => BankTransactionRecord;
+  deleteRetailSale: (invoiceNumber: string) => void;
+  deleteWholesaleSale: (invoiceNumber: string) => void;
+  deleteSupplier: (supplierId: string) => void;
+  deleteDealer: (dealerId: string) => void;
+  deletePayment: (paymentId: string) => void;
+  deletePurchase: (purchaseId: string) => void;
+  deleteStockAdjustment: (id: string) => void;
 }
 
 const ErpContext = createContext<ErpContextType | null>(null);
@@ -658,6 +701,46 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [masters, setMasters] = useState<MasterRecord[]>(() => {
     const res = getStored('MASTERS', INITIAL_MASTERS);
     return Array.isArray(res) && res.length > 0 ? res : INITIAL_MASTERS;
+  });
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>(() => {
+    const res = getStored('EXPENSES', []);
+    return Array.isArray(res) ? res : [];
+  });
+  const [dayCloses, setDayCloses] = useState<DayCloseRecord[]>(() => {
+    const res = getStored('DAY_CLOSES', []);
+    return Array.isArray(res) ? res : [];
+  });
+  const [labDispatches, setLabDispatches] = useState<LabDispatchRecord[]>(() => {
+    const res = getStored('LAB_DISPATCHES', []);
+    return Array.isArray(res) ? res : [];
+  });
+  const [fitters, setFitters] = useState<FitterRecord[]>(() => {
+    const res = getStored('FITTERS', []);
+    return Array.isArray(res) ? res : [];
+  });
+  const [fitterLedgers, setFitterLedgers] = useState<FitterLedgerRecord[]>(() => {
+    const res = getStored('FITTER_LEDGERS', []);
+    return Array.isArray(res) ? res : [];
+  });
+  const [goodsReceivedNotes, setGoodsReceivedNotes] = useState<GoodsReceivedNote[]>(() => {
+    const res = getStored('GOODS_RECEIVED_NOTES', []);
+    return Array.isArray(res) ? res : [];
+  });
+  const [staffLeaves, setStaffLeaves] = useState<StaffLeaveRecord[]>(() => {
+    const res = getStored('STAFF_LEAVES', []);
+    return Array.isArray(res) ? res : [];
+  });
+  const [staffSalaries, setStaffSalaries] = useState<StaffSalaryRecord[]>(() => {
+    const res = getStored('STAFF_SALARIES', []);
+    return Array.isArray(res) ? res : [];
+  });
+  const [staffAttendances, setStaffAttendances] = useState<StaffAttendanceRecord[]>(() => {
+    const res = getStored('STAFF_ATTENDANCES', []);
+    return Array.isArray(res) ? res : [];
+  });
+  const [bankTransactions, setBankTransactions] = useState<BankTransactionRecord[]>(() => {
+    const res = getStored('BANK_TRANSACTIONS', []);
+    return Array.isArray(res) ? res : [];
   });
   const [settings, setSettings] = useState<ClinicSettings>(() => {
     const stored = getStored('SETTINGS', INITIAL_SETTINGS);
@@ -1498,6 +1581,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resAutomation,
         resSegments,
         resUsers,
+        resExpenses,
+        resDayCloses,
+        resLabDispatches,
+        resFitters,
+        resFitterLedgers,
+        resGRN,
+        resStaffLeaves,
+        resStaffSalaries,
+        resStaffAttendances,
+        resBankTx,
         resClinicSettings,
         resRoleConfig
       ] = await Promise.allSettled([
@@ -1532,6 +1625,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loadCloudCollection<AutomationRule>('automation_rules'),
         loadCloudCollection<CustomerSegmentRule>('custom_segments'),
         loadCloudCollection<ERPUser>('users'),
+        loadCloudCollection<ExpenseRecord>('expenses'),
+        loadCloudCollection<DayCloseRecord>('day_closes'),
+        loadCloudCollection<LabDispatchRecord>('lab_dispatches'),
+        loadCloudCollection<FitterRecord>('fitters'),
+        loadCloudCollection<FitterLedgerRecord>('fitter_ledgers'),
+        loadCloudCollection<GoodsReceivedNote>('goods_received_notes'),
+        loadCloudCollection<StaffLeaveRecord>('staff_leaves'),
+        loadCloudCollection<StaffSalaryRecord>('staff_salaries'),
+        loadCloudCollection<StaffAttendanceRecord>('staff_attendances'),
+        loadCloudCollection<BankTransactionRecord>('bank_transactions'),
         loadCloudDocument<ClinicSettings>('clinic_settings', 'main'),
         loadCloudDocument<{ permissions: RolePermissionsMap }>('system_config', 'role_permissions')
       ]);
@@ -1590,6 +1693,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (resAutomation.status === 'fulfilled' && resAutomation.value.length > 0) setAutomationRules(resAutomation.value);
       if (resSegments.status === 'fulfilled' && resSegments.value.length > 0) setCustomSegments(resSegments.value);
       if (resUsers.status === 'fulfilled' && resUsers.value.length > 0) setErpUsers(resUsers.value);
+      if (resExpenses.status === 'fulfilled' && resExpenses.value.length > 0) setExpenses(resExpenses.value);
+      if (resDayCloses.status === 'fulfilled' && resDayCloses.value.length > 0) setDayCloses(resDayCloses.value);
+      if (resLabDispatches.status === 'fulfilled' && resLabDispatches.value.length > 0) setLabDispatches(resLabDispatches.value);
+      if (resFitters.status === 'fulfilled' && resFitters.value.length > 0) setFitters(resFitters.value);
+      if (resFitterLedgers.status === 'fulfilled' && resFitterLedgers.value.length > 0) setFitterLedgers(resFitterLedgers.value);
+      if (resGRN.status === 'fulfilled' && resGRN.value.length > 0) setGoodsReceivedNotes(resGRN.value);
+      if (resStaffLeaves.status === 'fulfilled' && resStaffLeaves.value.length > 0) setStaffLeaves(resStaffLeaves.value);
+      if (resStaffSalaries.status === 'fulfilled' && resStaffSalaries.value.length > 0) setStaffSalaries(resStaffSalaries.value);
+      if (resStaffAttendances.status === 'fulfilled' && resStaffAttendances.value.length > 0) setStaffAttendances(resStaffAttendances.value);
+      if (resBankTx.status === 'fulfilled' && resBankTx.value.length > 0) setBankTransactions(resBankTx.value);
       if (resClinicSettings.status === 'fulfilled' && resClinicSettings.value && Object.keys(resClinicSettings.value).length > 0) {
         setSettings(prev => ({ ...prev, ...(resClinicSettings as PromiseFulfilledResult<ClinicSettings>).value }));
       }
@@ -1661,13 +1774,17 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setter: (items: T[]) => void,
           transform?: (items: T[]) => T[]
         ) => {
+          let hasReceivedInitial = false;
           const unsub = subscribeCloudCollection<T>(
             collectionName,
             (items) => {
               if (isCancelled) return;
-              if (Array.isArray(items) && items.length > 0) {
-                setter(transform ? transform(items) : items);
+              if (Array.isArray(items)) {
+                if (items.length > 0 || hasReceivedInitial) {
+                  setter(transform ? transform(items) : items);
+                }
               }
+              hasReceivedInitial = true;
               setCloudSyncStatus('synced');
               setCloudLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
             },
@@ -1793,6 +1910,32 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           sanitizeAndDeduplicateAuditLogs(items).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''))
         );
 
+        // Extended Real-Time Modules
+        attachListener<ExpenseRecord>('expenses', setExpenses, (items) =>
+          [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''))
+        );
+        attachListener<DayCloseRecord>('day_closes', setDayCloses, (items) =>
+          [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.closedAt || '').localeCompare(a.closedAt || ''))
+        );
+        attachListener<LabDispatchRecord>('lab_dispatches', setLabDispatches, (items) =>
+          [...items].sort((a, b) => (b.dispatchDate || '').localeCompare(a.dispatchDate || '') || (b.id || '').localeCompare(a.id || ''))
+        );
+        attachListener<FitterRecord>('fitters', setFitters);
+        attachListener<FitterLedgerRecord>('fitter_ledgers', setFitterLedgers, (items) =>
+          [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''))
+        );
+        attachListener<GoodsReceivedNote>('goods_received_notes', setGoodsReceivedNotes, (items) =>
+          [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.grnNumber || '').localeCompare(a.grnNumber || ''))
+        );
+        attachListener<StaffLeaveRecord>('staff_leaves', setStaffLeaves);
+        attachListener<StaffSalaryRecord>('staff_salaries', setStaffSalaries);
+        attachListener<StaffAttendanceRecord>('staff_attendances', setStaffAttendances, (items) =>
+          [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''))
+        );
+        attachListener<BankTransactionRecord>('bank_transactions', setBankTransactions, (items) =>
+          [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''))
+        );
+
         // Clinic Settings real-time listener (doc 'main' in 'clinic_settings')
         unsubs.push(subscribeCloudDocument<ClinicSettings>('clinic_settings', 'main', (docData) => {
           if (isCancelled) return;
@@ -1876,6 +2019,16 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { setStored('AUTOMATION_RULES', automationRules); }, [automationRules]);
   useEffect(() => { setStored('CUSTOM_SEGMENTS', customSegments); }, [customSegments]);
   useEffect(() => { setStored('MASTERS', masters); }, [masters]);
+  useEffect(() => { setStored('EXPENSES', expenses); }, [expenses]);
+  useEffect(() => { setStored('DAY_CLOSES', dayCloses); }, [dayCloses]);
+  useEffect(() => { setStored('LAB_DISPATCHES', labDispatches); }, [labDispatches]);
+  useEffect(() => { setStored('FITTERS', fitters); }, [fitters]);
+  useEffect(() => { setStored('FITTER_LEDGERS', fitterLedgers); }, [fitterLedgers]);
+  useEffect(() => { setStored('GOODS_RECEIVED_NOTES', goodsReceivedNotes); }, [goodsReceivedNotes]);
+  useEffect(() => { setStored('STAFF_LEAVES', staffLeaves); }, [staffLeaves]);
+  useEffect(() => { setStored('STAFF_SALARIES', staffSalaries); }, [staffSalaries]);
+  useEffect(() => { setStored('STAFF_ATTENDANCES', staffAttendances); }, [staffAttendances]);
+  useEffect(() => { setStored('BANK_TRANSACTIONS', bankTransactions); }, [bankTransactions]);
   useEffect(() => { setStored('SETTINGS', settings); }, [settings]);
   useEffect(() => { setStored('CLINICAL_DRAFT', clinicalDraft); }, [clinicalDraft]);
 
@@ -6004,6 +6157,235 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Reset to default clinic demo records');
   };
 
+  // Extended Modules Real-Time CRUD Operations
+  const saveExpense = (data: Omit<ExpenseRecord, 'id' | 'createdAt'> & { id?: string }): ExpenseRecord => {
+    const id = data.id || `EXP-${Date.now().toString().slice(-6)}`;
+    const now = new Date().toISOString();
+    const record: ExpenseRecord = {
+      ...data,
+      id,
+      createdAt: (data as any).createdAt || now,
+      createdBy: (data as any).createdBy || (currentUser?.displayName || role)
+    };
+    setExpenses(prev => {
+      const idx = prev.findIndex(e => e.id === id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = record;
+        return copy;
+      }
+      return [record, ...prev];
+    });
+    persistToCloud('expenses', id, record);
+    addAuditLog('CREATE_EXPENSE', 'Billing', id, `Recorded expense: ${record.category} - ₹${record.amount} (${record.paidTo})`);
+    showToast(`Expense recorded: ₹${record.amount}`, 'success');
+    return record;
+  };
+
+  const deleteExpense = (id: string) => {
+    setExpenses(prev => prev.filter(e => e.id !== id));
+    deleteFromCloud('expenses', id);
+    addAuditLog('DELETE_EXPENSE', 'Billing', id, `Deleted expense record ${id}`);
+    showToast('Expense deleted', 'info');
+  };
+
+  const saveDayClose = (data: Omit<DayCloseRecord, 'id' | 'closedAt'> & { id?: string }): DayCloseRecord => {
+    const id = data.id || `DC-${data.date || new Date().toISOString().split('T')[0]}`;
+    const now = new Date().toISOString();
+    const record: DayCloseRecord = {
+      ...data,
+      id,
+      closedAt: now,
+      closedBy: data.closedBy || (currentUser?.displayName || role)
+    };
+    setDayCloses(prev => {
+      const idx = prev.findIndex(d => d.id === id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = record;
+        return copy;
+      }
+      return [record, ...prev];
+    });
+    persistToCloud('day_closes', id, record);
+    addAuditLog('DAY_CLOSE', 'Billing', id, `Closed day register for ${record.date}: Cash in drawer ₹${record.cashInDrawerActual}`);
+    showToast(`Day closed successfully for ${record.date}`, 'success');
+    return record;
+  };
+
+  const saveLabDispatch = (data: Omit<LabDispatchRecord, 'id'> & { id?: string }): LabDispatchRecord => {
+    const id = data.id || `LAB-${Date.now().toString().slice(-6)}`;
+    const record: LabDispatchRecord = {
+      ...data,
+      id,
+      dispatchedBy: data.dispatchedBy || (currentUser?.displayName || role)
+    };
+    setLabDispatches(prev => {
+      const idx = prev.findIndex(l => l.id === id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = record;
+        return copy;
+      }
+      return [record, ...prev];
+    });
+    persistToCloud('lab_dispatches', id, record);
+    addAuditLog('LAB_DISPATCH', 'Spectacles', id, `Updated lab dispatch: Order #${record.orderId} -> ${record.labName} (${record.status})`);
+    showToast(`Lab dispatch saved: ${record.status}`, 'success');
+    return record;
+  };
+
+  const deleteLabDispatch = (id: string) => {
+    setLabDispatches(prev => prev.filter(l => l.id !== id));
+    deleteFromCloud('lab_dispatches', id);
+    addAuditLog('DELETE_LAB_DISPATCH', 'Spectacles', id, `Deleted lab dispatch ${id}`);
+    showToast('Lab dispatch entry deleted', 'info');
+  };
+
+  const saveFitter = (data: Omit<FitterRecord, 'id'> & { id?: string }): FitterRecord => {
+    const id = data.id || `FIT-${Date.now().toString().slice(-4)}`;
+    const record: FitterRecord = { ...data, id };
+    setFitters(prev => {
+      const idx = prev.findIndex(f => f.id === id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = record;
+        return copy;
+      }
+      return [record, ...prev];
+    });
+    persistToCloud('fitters', id, record);
+    showToast(`Fitter ${record.name} saved!`, 'success');
+    return record;
+  };
+
+  const deleteFitter = (id: string) => {
+    setFitters(prev => prev.filter(f => f.id !== id));
+    deleteFromCloud('fitters', id);
+    showToast('Fitter deleted', 'info');
+  };
+
+  const saveFitterLedger = (data: Omit<FitterLedgerRecord, 'id'> & { id?: string }): FitterLedgerRecord => {
+    const id = data.id || `FL-${Date.now().toString().slice(-6)}`;
+    const record: FitterLedgerRecord = { ...data, id };
+    setFitterLedgers(prev => [record, ...prev]);
+    persistToCloud('fitter_ledgers', id, record);
+    showToast('Fitter ledger entry recorded', 'success');
+    return record;
+  };
+
+  const saveGoodsReceivedNote = (data: Omit<GoodsReceivedNote, 'id'> & { id?: string }): GoodsReceivedNote => {
+    const id = data.id || `GRN-${Date.now().toString().slice(-6)}`;
+    const record: GoodsReceivedNote = { ...data, id };
+    setGoodsReceivedNotes(prev => [record, ...prev]);
+    persistToCloud('goods_received_notes', id, record);
+    showToast(`GRN ${record.grnNumber} saved!`, 'success');
+    return record;
+  };
+
+  const saveStaffLeave = (data: Omit<StaffLeaveRecord, 'id'> & { id?: string }): StaffLeaveRecord => {
+    const id = data.id || `LV-${Date.now().toString().slice(-6)}`;
+    const record: StaffLeaveRecord = { ...data, id };
+    setStaffLeaves(prev => {
+      const idx = prev.findIndex(l => l.id === id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = record;
+        return copy;
+      }
+      return [record, ...prev];
+    });
+    persistToCloud('staff_leaves', id, record);
+    showToast('Staff leave record saved', 'success');
+    return record;
+  };
+
+  const saveStaffSalary = (data: Omit<StaffSalaryRecord, 'id'> & { id?: string }): StaffSalaryRecord => {
+    const id = data.id || `SAL-${Date.now().toString().slice(-6)}`;
+    const record: StaffSalaryRecord = { ...data, id };
+    setStaffSalaries(prev => {
+      const idx = prev.findIndex(s => s.id === id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = record;
+        return copy;
+      }
+      return [record, ...prev];
+    });
+    persistToCloud('staff_salaries', id, record);
+    showToast(`Salary for ${record.staffName} (${record.month}) saved!`, 'success');
+    return record;
+  };
+
+  const saveStaffAttendance = (data: Omit<StaffAttendanceRecord, 'id'> & { id?: string }): StaffAttendanceRecord => {
+    const id = data.id || `ATT-${data.staffId}-${data.date}`;
+    const record: StaffAttendanceRecord = { ...data, id };
+    setStaffAttendances(prev => {
+      const idx = prev.findIndex(a => a.id === id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = record;
+        return copy;
+      }
+      return [record, ...prev];
+    });
+    persistToCloud('staff_attendances', id, record);
+    return record;
+  };
+
+  const saveBankTransaction = (data: Omit<BankTransactionRecord, 'id'> & { id?: string }): BankTransactionRecord => {
+    const id = data.id || `TXN-${Date.now().toString().slice(-6)}`;
+    const record: BankTransactionRecord = { ...data, id };
+    setBankTransactions(prev => [record, ...prev]);
+    persistToCloud('bank_transactions', id, record);
+    showToast(`Bank transaction recorded: ${record.type} ₹${record.amount}`, 'success');
+    return record;
+  };
+
+  const deleteRetailSale = (invoiceNumber: string) => {
+    setRetailSales(prev => prev.filter(s => s.invoiceNumber !== invoiceNumber));
+    deleteFromCloud('retail_sales', invoiceNumber);
+    addAuditLog('DELETE', 'Billing', invoiceNumber, `Deleted retail invoice ${invoiceNumber}`);
+    showToast(`Invoice ${invoiceNumber} deleted`, 'info');
+  };
+
+  const deleteWholesaleSale = (invoiceNumber: string) => {
+    setWholesaleSales(prev => prev.filter(s => s.invoiceNumber !== invoiceNumber));
+    deleteFromCloud('wholesale_sales', invoiceNumber);
+    addAuditLog('DELETE', 'Billing', invoiceNumber, `Deleted wholesale invoice ${invoiceNumber}`);
+    showToast(`Wholesale invoice ${invoiceNumber} deleted`, 'info');
+  };
+
+  const deleteSupplier = (supplierId: string) => {
+    setSuppliers(prev => prev.filter(s => s.supplierId !== supplierId));
+    deleteFromCloud('suppliers', supplierId);
+    showToast(`Supplier deleted`, 'info');
+  };
+
+  const deleteDealer = (dealerId: string) => {
+    setDealers(prev => prev.filter(d => d.dealerId !== dealerId));
+    deleteFromCloud('dealers', dealerId);
+    showToast(`Dealer deleted`, 'info');
+  };
+
+  const deletePayment = (paymentId: string) => {
+    setPayments(prev => prev.filter(p => p.paymentId !== paymentId));
+    deleteFromCloud('payments', paymentId);
+    showToast(`Payment ${paymentId} deleted`, 'info');
+  };
+
+  const deletePurchase = (purchaseId: string) => {
+    setPurchases(prev => prev.filter(p => p.purchaseId !== purchaseId));
+    deleteFromCloud('purchases', purchaseId);
+    showToast(`Purchase record deleted`, 'info');
+  };
+
+  const deleteStockAdjustment = (id: string) => {
+    setStockAdjustments(prev => prev.filter(s => s.id !== id));
+    deleteFromCloud('stock_adjustments', id);
+    showToast(`Stock adjustment record deleted`, 'info');
+  };
+
   return (
     <ErpContext.Provider
       value={{
@@ -6218,7 +6600,38 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeFrameBrands,
         activeFrameTypes,
         activeDiagnoses,
-        activePaymentMethods
+        activePaymentMethods,
+        // Extended Real-Time Modules
+        expenses,
+        saveExpense,
+        deleteExpense,
+        dayCloses,
+        saveDayClose,
+        labDispatches,
+        saveLabDispatch,
+        deleteLabDispatch,
+        fitters,
+        saveFitter,
+        deleteFitter,
+        fitterLedgers,
+        saveFitterLedger,
+        goodsReceivedNotes,
+        saveGoodsReceivedNote,
+        staffLeaves,
+        saveStaffLeave,
+        staffSalaries,
+        saveStaffSalary,
+        staffAttendances,
+        saveStaffAttendance,
+        bankTransactions,
+        saveBankTransaction,
+        deleteRetailSale,
+        deleteWholesaleSale,
+        deleteSupplier,
+        deleteDealer,
+        deletePayment,
+        deletePurchase,
+        deleteStockAdjustment
       }}
     >
       {children}

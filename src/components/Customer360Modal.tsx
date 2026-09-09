@@ -1914,65 +1914,65 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({ customer, on
               {/* Right Eye */}
               <div className="p-3 bg-cyan-50/70 rounded-xl border border-cyan-200">
                 <h4 className="font-bold text-cyan-900 mb-2">Right Eye (OD / RE)</h4>
-                <div className="grid grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
                   <div>
-                    <label className="text-[10px] text-slate-500 block">SPH</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">SPH (D)</label>
                     <input
                       type="text"
                       value={odSph}
                       onChange={e => setOdSph(e.target.value)}
-                      placeholder="-1.25"
-                      className="w-full p-1.5 border border-slate-300 rounded bg-white font-mono"
+                      placeholder="—"
+                      className="w-full min-h-[42px] px-2 py-1.5 border-2 border-cyan-300 rounded-xl bg-white font-mono text-sm font-black text-center text-slate-900 focus:ring-2 focus:ring-cyan-500"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block">CYL</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">CYL (D)</label>
                     <input
                       type="text"
                       value={odCyl}
                       onChange={e => setOdCyl(e.target.value)}
-                      placeholder="-0.50"
-                      className="w-full p-1.5 border border-slate-300 rounded bg-white font-mono"
+                      placeholder="—"
+                      className="w-full min-h-[42px] px-2 py-1.5 border-2 border-cyan-300 rounded-xl bg-white font-mono text-sm font-black text-center text-indigo-900 focus:ring-2 focus:ring-cyan-500"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block">AXIS</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">AXIS</label>
                     <input
                       type="text"
                       value={odAxis}
                       onChange={e => setOdAxis(e.target.value)}
-                      placeholder="90°"
-                      className="w-full p-1.5 border border-slate-300 rounded bg-white font-mono"
+                      placeholder="—"
+                      className="w-full min-h-[42px] px-2 py-1.5 border-2 border-cyan-300 rounded-xl bg-white font-mono text-sm font-black text-center text-slate-900 focus:ring-2 focus:ring-cyan-500"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block">ADD</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">ADD</label>
                     <input
                       type="text"
                       value={odAdd}
                       onChange={e => setOdAdd(e.target.value)}
-                      placeholder="+2.00"
-                      className="w-full p-1.5 border border-slate-300 rounded bg-white font-mono"
+                      placeholder="—"
+                      className="w-full min-h-[42px] px-2 py-1.5 border-2 border-cyan-300 rounded-xl bg-white font-mono text-sm font-black text-center text-emerald-800 focus:ring-2 focus:ring-cyan-500"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block">Dist VA</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Dist VA</label>
                     <input
                       type="text"
                       value={odDistVa}
                       onChange={e => setOdDistVa(e.target.value)}
                       placeholder="6/6"
-                      className="w-full p-1.5 border border-slate-300 rounded bg-white"
+                      className="w-full min-h-[42px] px-2 py-1.5 border-2 border-cyan-200 rounded-xl bg-white text-sm font-bold text-center text-slate-800"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block">Near VA</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Near VA</label>
                     <input
                       type="text"
                       value={odNearVa}
                       onChange={e => setOdNearVa(e.target.value)}
                       placeholder="N6"
-                      className="w-full p-1.5 border border-slate-300 rounded bg-white"
+                      className="w-full min-h-[42px] px-2 py-1.5 border-2 border-cyan-200 rounded-xl bg-white text-sm font-bold text-center text-slate-800"
                     />
                   </div>
                 </div>
@@ -1981,65 +1981,65 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({ customer, on
               {/* Left Eye */}
               <div className="p-3 bg-teal-50/70 rounded-xl border border-teal-200">
                 <h4 className="font-bold text-teal-900 mb-2">Left Eye (OS / LE)</h4>
-                <div className="grid grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
                   <div>
-                    <label className="text-[10px] text-slate-500 block">SPH</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">SPH (D)</label>
                     <input
                       type="text"
                       value={osSph}
                       onChange={e => setOsSph(e.target.value)}
-                      placeholder="-1.00"
-                      className="w-full p-1.5 border border-slate-300 rounded bg-white font-mono"
+                      placeholder="—"
+                      className="w-full min-h-[42px] px-2 py-1.5 border-2 border-teal-300 rounded-xl bg-white font-mono text-sm font-black text-center text-slate-900 focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block">CYL</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">CYL (D)</label>
                     <input
                       type="text"
                       value={osCyl}
                       onChange={e => setOsCyl(e.target.value)}
-                      placeholder="-0.50"
-                      className="w-full p-1.5 border border-slate-300 rounded bg-white font-mono"
+                      placeholder="—"
+                      className="w-full min-h-[42px] px-2 py-1.5 border-2 border-teal-300 rounded-xl bg-white font-mono text-sm font-black text-center text-indigo-900 focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block">AXIS</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">AXIS</label>
                     <input
                       type="text"
                       value={osAxis}
                       onChange={e => setOsAxis(e.target.value)}
-                      placeholder="180°"
-                      className="w-full p-1.5 border border-slate-300 rounded bg-white font-mono"
+                      placeholder="—"
+                      className="w-full min-h-[42px] px-2 py-1.5 border-2 border-teal-300 rounded-xl bg-white font-mono text-sm font-black text-center text-slate-900 focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block">ADD</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">ADD</label>
                     <input
                       type="text"
                       value={osAdd}
                       onChange={e => setOsAdd(e.target.value)}
-                      placeholder="+2.00"
-                      className="w-full p-1.5 border border-slate-300 rounded bg-white font-mono"
+                      placeholder="—"
+                      className="w-full min-h-[42px] px-2 py-1.5 border-2 border-teal-300 rounded-xl bg-white font-mono text-sm font-black text-center text-emerald-800 focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block">Dist VA</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Dist VA</label>
                     <input
                       type="text"
                       value={osDistVa}
                       onChange={e => setOsDistVa(e.target.value)}
                       placeholder="6/6"
-                      className="w-full p-1.5 border border-slate-300 rounded bg-white"
+                      className="w-full min-h-[42px] px-2 py-1.5 border-2 border-teal-200 rounded-xl bg-white text-sm font-bold text-center text-slate-800"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block">Near VA</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Near VA</label>
                     <input
                       type="text"
                       value={osNearVa}
                       onChange={e => setOsNearVa(e.target.value)}
                       placeholder="N6"
-                      className="w-full p-1.5 border border-slate-300 rounded bg-white"
+                      className="w-full min-h-[42px] px-2 py-1.5 border-2 border-teal-200 rounded-xl bg-white text-sm font-bold text-center text-slate-800"
                     />
                   </div>
                 </div>
